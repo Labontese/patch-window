@@ -6,6 +6,7 @@ import SiteFooter from '@/components/SiteFooter'
 import ArticleHeader from '@/components/ArticleHeader'
 import AuthorBio from '@/components/AuthorBio'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { safeJsonLd } from '@/lib/jsonld'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -126,7 +127,7 @@ export default async function DeepDivePage({ params }: Props) {
       <SiteFooter />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}
       />
     </>
   )

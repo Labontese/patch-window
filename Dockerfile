@@ -44,8 +44,9 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Health check — verifies the app actually responds, not just that the process exists
+# Health check — hits /health so Watchtower sees the container as unhealthy
+# when Postgres is unreachable (SECURITY-REVIEW 2026-04-16, HIGH #2).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD wget -qO- http://localhost:3000/ || exit 1
+  CMD wget -qO- http://localhost:3000/health || exit 1
 
 CMD ["node", "server.js"]

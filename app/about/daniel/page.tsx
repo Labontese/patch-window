@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { safeJsonLd } from '@/lib/jsonld'
 
 export const metadata: Metadata = {
   title: 'Daniel Gustafsson',
@@ -93,7 +94,7 @@ export default function DanielPage() {
       <SiteFooter />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(personJsonLd) }}
       />
     </>
   )

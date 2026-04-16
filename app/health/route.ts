@@ -17,10 +17,13 @@ export async function GET() {
       { status: 200 }
     )
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    // Log full error server-side (visible in container logs / Loki) but return
+    // only a generic status to clients — raw DB error messages leak schema,
+    // hostname, and role information (SECURITY-REVIEW 2026-04-16, HIGH #1).
+    console.error('Health check DB ping failed:', err)
 
     return NextResponse.json(
-      { status: 'error', timestamp, version, db: message },
+      { status: 'error', timestamp, version },
       { status: 503 }
     )
   }

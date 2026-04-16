@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Playfair_Display, Source_Serif_4 } from 'next/font/google'
+import { safeJsonLd } from '@/lib/jsonld'
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -87,13 +88,13 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationJsonLd),
+            __html: safeJsonLd(organizationJsonLd),
           }}
         />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(websiteJsonLd),
+            __html: safeJsonLd(websiteJsonLd),
           }}
         />
       </body>
