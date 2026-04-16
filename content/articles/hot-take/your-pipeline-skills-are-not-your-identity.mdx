@@ -1,0 +1,36 @@
+---
+title: "Your pipeline skills are not your identity"
+format: hot-take
+slug: your-pipeline-skills-are-not-your-identity
+pathway: devops-culture
+tags:
+  - devops
+  - aiops
+  - platform-engineering
+  - ci-cd
+  - career
+publishedAt: "2026-04-16"
+excerpt: "The shift to internal developer platforms and AIOps is real. The reason DevOps engineers are angry about it is worth looking at honestly."
+---
+
+The move toward Internal Developer Platforms is not a rumor. Developers self-serving their own infrastructure, AIOps agents scanning logs and opening PRs for config changes, the slow death of the bespoke Jenkins setup that took six months to tune -- this is happening, and it is going to keep happening.
+
+I've watched a lot of DevOps engineers react to this like it's a personal attack.
+
+My read: the craft-to-platform shift is the right direction. The work that mattered was always the thinking, not the pipeline syntax. If an AI agent can analyze your flaky test logs and propose the fix faster than you can open the run history, that's a tool doing what tools are supposed to do.
+
+The part that's making people uncomfortable is that the pipeline itself -- the Jenkins config, the GitLab CI YAML, the GitHub Actions workflow with the weird caching logic that only you understand -- became the identity, not the outcome. When someone says "your core skill is being automated away," the engineers who react defensively are the ones who conflated the two.
+
+I get why it happened. Building a complex CI/CD pipeline from scratch is real work. It requires understanding the system, the dependencies, the failure modes. For a lot of people, that was also the thing that got them hired, got them respect, made them valuable. The idea that a platform abstracts that away -- or that an AI agent handles the maintenance -- reads as "you're not needed."
+
+But that's not what it means.
+
+Platform engineering is not a replacement for knowing what you're doing. It's a replacement for doing the same thing 40 times with slight variations. The engineers who are going to do well in this shift are the ones who understand why the platform works the way it does, what breaks when the abstraction leaks, and what to do at 3 AM when the self-serve system goes down and the on-call developer has no idea what to do next.
+
+That knowledge doesn't live in the pipeline file. It never did.
+
+AIOps handling the repetitive parts is not the end of DevOps engineering. It's the end of DevOps engineering as data entry. If that's the part you're defending, that's the problem.
+
+The engineers I'd want on my team during a real incident are not the ones who memorized GitHub Actions syntax. They're the ones who understand network behavior, failure modes, observability, and how to think when nothing is working. That's the skill set that doesn't automate away.
+
+Worth watching: how IDP vendors handle the edge cases that don't fit the happy path. That's where the real work will be.

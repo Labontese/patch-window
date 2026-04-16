@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32" width="64" height="32" role="img" aria-hidden="true">
+  <!--
+    Fönster-linje glyph — stiliserat "patch window" som en schemalagd tidsrad.
+    Variant: window (Nova's preserved alternative)
+    Uses currentColor so CSS controls fill in both dark/light modes.
+    Optimized for readability at 16x16 (scaled down).
+  -->
+  <style>
+    .glyph { fill: currentColor; }
+  </style>
+
+  <!-- Left bracket -->
+  <rect class="glyph" x="2" y="10" width="3" height="12" rx="1"/>
+  <rect class="glyph" x="2" y="10" width="8" height="3" rx="1"/>
+  <rect class="glyph" x="2" y="19" width="8" height="3" rx="1"/>
+
+  <!-- Timeline bar — left segment (before window) -->
+  <rect class="glyph" x="12" y="15" width="8" height="2" rx="1"/>
+
+  <!-- Maintenance window: filled block (the "patch window" itself) -->
+  <rect class="glyph" x="22" y="10" width="20" height="12" rx="1"/>
+
+  <!-- Timeline bar — right segment (after window) -->
+  <rect class="glyph" x="44" y="15" width="8" height="2" rx="1"/>
+
+  <!-- Right bracket -->
+  <rect class="glyph" x="54" y="10" width="8" height="3" rx="1"/>
+  <rect class="glyph" x="54" y="19" width="8" height="3" rx="1"/>
+  <rect class="glyph" x="59" y="10" width="3" height="12" rx="1"/>
+</svg>

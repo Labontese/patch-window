@@ -1,0 +1,33 @@
+---
+title: "Cursor is fine, but it's not the terminal"
+format: hot-take
+slug: cursor-is-fine-but-its-not-the-terminal
+pathway: sysadmin-craft
+tags:
+  - editors
+  - vim
+  - ai-tools
+  - workflow
+publishedAt: 2026-04-15T10:00:00+02:00
+excerpt: "AI editors are useful. They are also not a replacement for knowing what you're doing at the prompt."
+draft: false
+lang: en
+---
+
+Everyone keeps asking whether I've switched to Cursor. The answer is no, and I want to explain why without sounding like someone defending Vim for aesthetic reasons.
+
+Cursor is a real tool. The autocomplete works. The chat sidebar is useful when I'm working in an unfamiliar codebase. I've used it, I don't hate it. What I do think is that the framing around it — "you barely need to know how to code anymore" — is going to hurt the people who believe it.
+
+The terminal is not a legacy interface. It's the interface where things actually work when something is broken. When your container won't start. When a process is eating CPU and you need to know why right now. When you've SSHed into a machine at 2 AM because the monitoring alert went off and you have 10 minutes before the backup window closes.
+
+At that point, your AI editor is not present. What's present is a shell, whatever tools are installed, and your knowledge of what to actually type.
+
+I've watched junior engineers who got good fast with AI-assisted editors run into walls when they had to debug something real. The autocomplete fills in code they've never thought through. The chat explains concepts they accept without internalizing. Then they're at a bash prompt and they genuinely don't know what `ps aux | grep` does.
+
+This is not a Cursor problem. It's a training problem. Cursor is a productivity tool for people who already know what they're doing. For people still learning the fundamentals, it's a speed bypass that skips the part where you learn what the speed is for.
+
+The terminal is where you learn that. `strace`, `tcpdump`, `ss -tulpn`, `journalctl -u`, `df -h`. These are not things you get from an AI editor. You get them from being stuck, reading the man page, trying the wrong flag, and eventually getting it right.
+
+I'm not saying don't use AI tools. I use them. I'm saying: if you're using them as a substitute for learning how systems work, you're borrowing against a debt you'll pay later, at exactly the wrong moment.
+
+The terminal is always where we end up. Everything else is built on top of it. Learn what's underneath.

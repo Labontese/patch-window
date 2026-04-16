@@ -1,0 +1,65 @@
+# Place this file at .github/workflows/deploy.yml in the patchwindow repo
+name: Deploy patchwindow.serverdigital.net to Hetzner
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22"
+  DEPLOY_PATH: /home/deploy/server/sites/patchwindow
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Prepare deploy directory
+        run: |
+          mkdir -p deploy
+          cp Dockerfile package.json package-lock.json next.config.mjs mdx-components.tsx tsconfig.json drizzle.config.ts deploy/
+          cp -r app content lib public deploy/
+
+      - name: Deploy source
+        uses: easingthemes/ssh-deploy@v5.1.1
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.DEPLOY_HOST }}
+          REMOTE_USER: deploy
+          SOURCE: "deploy/"
+          TARGET: ${{ env.DEPLOY_PATH }}
+          ARGS: "-rlgoDzvc --delete"
+
+      - name: Rebuild and restart container
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ~/server
+            git fetch origin main
+            git checkout origin/main -- docker-compose.yml .env.example
+            docker compose up -d --build --force-recreate patchwindow
+
+# =============================================================
+# Required GitHub Secrets (add in repo Settings > Secrets):
+#
+#   DEPLOY_HOST       — IP or hostname of the Hetzner server
+#                       (Daniel already uses this for holmdigital)
+#   DEPLOY_SSH_KEY    — Private SSH key for the deploy user
+#                       (same key as holmdigital if same server)
+#   RESEND_API_KEY    — Already configured by Daniel
+#   DATABASE_URL      — postgresql://patchwindow:<pw>@postgres:5432/patchwindow
+#                       Set this after running the postgres init script
+# =============================================================

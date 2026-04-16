@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32" width="64" height="32" role="img" aria-hidden="true">
+  <!--
+    $_ glyph — dollar-prompt + block cursor
+    Variant: prompt (Anna's recommendation / default)
+    Uses currentColor so CSS controls fill in both dark/light modes.
+    Optimized for readability at 16x16 (scaled down).
+    Static — no blink animation (prefers-reduced-motion compliant by default).
+  -->
+  <style>
+    .glyph { fill: currentColor; }
+  </style>
+
+  <!-- Dollar sign: vertical stroke -->
+  <rect class="glyph" x="11" y="2" width="3" height="28" rx="1"/>
+
+  <!-- Dollar sign: top horizontal bar -->
+  <rect class="glyph" x="7" y="5" width="11" height="3" rx="1"/>
+  <!-- Dollar sign: middle horizontal bar -->
+  <rect class="glyph" x="7" y="14.5" width="11" height="3" rx="1"/>
+  <!-- Dollar sign: bottom horizontal bar -->
+  <rect class="glyph" x="7" y="24" width="11" height="3" rx="1"/>
+
+  <!-- Dollar sign: top-left serif stroke -->
+  <rect class="glyph" x="7" y="5" width="3" height="6" rx="1"/>
+  <!-- Dollar sign: bottom-right serif stroke -->
+  <rect class="glyph" x="15" y="21" width="3" height="6" rx="1"/>
+
+  <!-- Block cursor: solid rectangle -->
+  <rect class="glyph" x="29" y="8" width="14" height="16" rx="1"/>
+
+  <!-- Underscore beneath cursor -->
+  <rect class="glyph" x="29" y="27" width="14" height="3" rx="1"/>
+</svg>

@@ -1,0 +1,162 @@
+---
+title: "K3s on Proxmox: what actually breaks in production"
+format: deep-dive
+slug: k3s-on-proxmox-production-lessons
+pathway: homelab-edge
+tags:
+  - k3s
+  - kubernetes
+  - proxmox
+  - networking
+  - storage
+publishedAt: 2026-04-15T11:00:00+02:00
+excerpt: "Running K3s inside Proxmox VMs with real workloads exposed problems that the quick-start guides don't mention. Here's what I found."
+draft: false
+lang: en
+---
+
+I've been running K3s on a three-node Proxmox VE cluster since late 2025. The hardware is Dell PowerEdge R730xd, R240, and T430. The Proxmox version is 8.3.2. K3s is v1.32.2+k3s1. What follows is not a tutorial — it's a record of what broke and what fixed it.
+
+## The setup
+
+Three Proxmox nodes. K3s runs inside VMs, not on bare metal. Each VM has 4 vCPUs and 8 GB RAM. Storage backend is a Ceph cluster running on the same Proxmox nodes, with separate SSDs for Ceph OSDs to avoid I/O contention with the VM disks.
+
+The network has 11 VLANs. K3s nodes are in VLAN 30 (infrastructure services). pfSense handles inter-VLAN routing. The 10GbE backbone is a Quanta LB6M.
+
+K3s uses Flannel for CNI (default). Traefik 2.x as ingress controller (bundled with K3s, not swapped out).
+
+This setup is not identical to a cloud Kubernetes deployment. Some of what I found may not apply to your environment.
+
+## Problem 1: etcd memory consumption under load
+
+K3s defaults to SQLite for its datastore. For a single-node cluster, that's fine. For three nodes with high-availability, you need etcd — and etcd on low-memory VMs will surprise you.
+
+My VMs started at 4 GB RAM. Under normal load, etcd consumed around 400 MB. Under backup operations (Velero snapshots of persistent volumes), it peaked at 2.1 GB. At that point, the OOM killer started terminating pods.
+
+The fix was twofold. First, I increased VM RAM to 8 GB. Second, I added etcd memory limits in the K3s server configuration:
+
+```bash
+# /etc/rancher/k3s/config.yaml
+etcd-arg:
+  - "quota-backend-bytes=2147483648"
+  - "auto-compaction-mode=periodic"
+  - "auto-compaction-retention=1h"
+```
+
+The compaction settings matter. Without them, etcd accumulates history indefinitely and the memory footprint grows over weeks. `auto-compaction-retention=1h` keeps the last hour of history and discards the rest.
+
+After these changes, etcd memory stayed below 600 MB under the same backup load.
+
+## Problem 2: Ceph RBD volumes and slow attach times
+
+K3s supports Ceph RBD via the Longhorn storage driver or via direct CSI plugins. I used the Ceph CSI plugin (`ceph-csi-rbd` v3.12.0).
+
+The problem: pod startup times with RBD volumes were erratic. Some pods started in 4 seconds, others took 45. The variance was consistent with volume attachment timing.
+
+`kubectl describe pod` showed the culprit:
+
+```
+Events:
+  Normal  Scheduled     0s    default-scheduler  Successfully assigned default/myapp to k3s-node-02
+  Normal  Pulling       2s    kubelet            Pulling image "myapp:latest"
+  Normal  Pulled        8s    kubelet            Successfully pulled image
+  Warning AttachVolume  32s   attachdetach       AttachVolume.Attach failed for volume "pvc-abc123": rbd: map failed exit status 1
+  Normal  Pulled        45s   kubelet            Successfully pulled image (retry)
+```
+
+The `rbd: map failed` error was transient — the volume attached on retry, but only after a 30+ second timeout. The cause was a race condition between the Ceph monitor connection and the kernel RBD module. On cold node starts, the RBD module wasn't loaded before the CSI driver attempted the map.
+
+Fix: preload the RBD kernel module on all K3s nodes at boot.
+
+```bash
+# /etc/modules-load.d/rbd.conf
+rbd
+```
+
+```bash
+modprobe rbd
+```
+
+After adding this to all three VMs via Ansible, cold-start attachment time dropped to under 5 seconds consistently.
+
+## Problem 3: Flannel and VLAN routing
+
+K3s uses Flannel with VXLAN by default. VXLAN encapsulates pod-to-pod traffic in UDP port 8472. The problem: pfSense was not passing UDP 8472 between VLAN 30 hosts by default. I had an allow-all rule on the VLAN 30 interface but had missed the direction. pfSense interface rules are inbound-only by default.
+
+Symptom: cross-node pod communication worked intermittently. Pods on the same node communicated fine. Pods on different nodes dropped packets.
+
+Diagnosis:
+
+```bash
+# On node-01, watch for VXLAN traffic
+tcpdump -i eth0 udp port 8472 -nn -c 20
+```
+
+Output showed packets leaving node-01 and not arriving on node-02. Confirmed with:
+
+```bash
+# On node-02
+tcpdump -i eth0 udp port 8472 -nn -c 20
+# No output
+```
+
+Fix: add explicit allow rules on the pfSense VLAN 30 interface for UDP 8472 in both directions. After that, cross-node pod communication became stable.
+
+This is an environment-specific issue. If your K3s nodes are on a flat layer-2 network with no firewall between them, you won't hit this.
+
+## Problem 4: Traefik and Let's Encrypt on a private network
+
+The bundled Traefik v2 uses HTTP-01 ACME challenges by default. HTTP-01 requires the domain to be publicly reachable. My K3s cluster is on an internal network. Let's Encrypt can't reach it.
+
+The solution is DNS-01 challenges. Traefik supports DNS-01 via environment variables for supported DNS providers. I use Cloudflare.
+
+```yaml
+# /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    certificatesResolvers:
+      letsencrypt:
+        acme:
+          email: daniel@serverdigital.net
+          storage: /data/acme.json
+          dnsChallenge:
+            provider: cloudflare
+            resolvers:
+              - "1.1.1.1:53"
+              - "8.8.8.8:53"
+    env:
+      - name: CF_DNS_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: cloudflare-api-token
+            key: token
+```
+
+The Cloudflare API token needs `Zone:Read` and `DNS:Edit` permissions. Nothing else.
+
+After this change, Traefik issued certificates without needing inbound port 80 open to the internet.
+
+## What held up fine
+
+Wazuh SIEM integration worked without issues. I deployed Wazuh agents on the K3s VMs and configured them to forward to the Wazuh manager on VLAN 20 (security). The agents see pod-level process activity, which is useful for detecting unexpected processes inside containers.
+
+K3s upgrades via `k3sup upgrade` went cleanly across all three versions I tested (v1.31.1 to v1.31.4 to v1.32.2). The rolling upgrade process did what it said it would.
+
+## What I didn't test
+
+- Cluster recovery from a full etcd quorum loss (two of three nodes simultaneously down)
+- Storage migration from Ceph CSI to Longhorn
+- K3s with Cilium instead of Flannel
+
+These are on the list but not done yet. I'll write them up when they are.
+
+## Summary
+
+The problems I hit were: etcd OOM on low-memory VMs, RBD kernel module race conditions, Flannel blocked by inter-VLAN firewall rules, and Traefik ACME challenges on a private network. All four had specific, reproducible fixes. None of them appeared in the quick-start documentation.
+
+If you're running K3s in a similar homelab-with-real-networking environment, expect to spend time on the network side specifically. The Kubernetes parts work. The integration with your existing network infrastructure is where the surprises are.

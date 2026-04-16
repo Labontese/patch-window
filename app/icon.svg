@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    Patch Window favicon — $_ glyph optimerad för 16x16.
+    Fyller hela 32-ytan, tjocka stroke så pixelhashning vid små storlekar
+    fortfarande lämnar tydlig form.
+    Mörkt läge: amber #d4a017 på natt-navy #0a1628
+    Ljust läge: mörk amber #8b6800 på papper #f5f0e8
+    Statisk (ingen animation).
+  -->
+  <style>
+    :root { --bg: #0a1628; --fg: #d4a017; }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f5f0e8; --fg: #8b6800; }
+    }
+    .bg { fill: var(--bg); }
+    .fg { fill: var(--fg); }
+  </style>
+
+  <!-- Bakgrund med rundade hörn -->
+  <rect class="bg" x="0" y="0" width="32" height="32" rx="5"/>
+
+  <!-- $-tecken, vänster halva av ytan -->
+  <rect class="fg" x="9" y="5" width="3" height="22" rx="1"/>
+  <rect class="fg" x="6" y="8" width="9" height="3" rx="1"/>
+  <rect class="fg" x="6" y="8" width="3" height="6" rx="1"/>
+  <rect class="fg" x="6" y="14.5" width="9" height="3" rx="1"/>
+  <rect class="fg" x="6" y="21" width="9" height="3" rx="1"/>
+  <rect class="fg" x="12" y="18" width="3" height="6" rx="1"/>
+
+  <!-- Block cursor och underscore, höger halva -->
+  <rect class="fg" x="19" y="10" width="8" height="10" rx="1"/>
+  <rect class="fg" x="19" y="23" width="8" height="3" rx="1"/>
+</svg>

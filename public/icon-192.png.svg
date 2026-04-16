@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <!--
+    PWA icon 192x192 — source SVG för PNG-export.
+    Använd sharp/Inkscape/ImageMagick för att konvertera till icon-192.png.
+    $_ glyph, amber på navy.
+  -->
+  <rect fill="#0a1628" x="0" y="0" width="192" height="192" rx="24"/>
+  <!-- $_ glyph, centrerad och skalad -->
+  <g transform="translate(40, 64) scale(3.5)">
+    <rect fill="#d4a017" x="11" y="2" width="3" height="28" rx="1"/>
+    <rect fill="#d4a017" x="7" y="5" width="11" height="3" rx="1"/>
+    <rect fill="#d4a017" x="7" y="5" width="3" height="6" rx="1"/>
+    <rect fill="#d4a017" x="7" y="14.5" width="11" height="3" rx="1"/>
+    <rect fill="#d4a017" x="7" y="24" width="11" height="3" rx="1"/>
+    <rect fill="#d4a017" x="15" y="21" width="3" height="6" rx="1"/>
+    <rect fill="#d4a017" x="30" y="8" width="13" height="16" rx="1"/>
+    <rect fill="#d4a017" x="30" y="27" width="13" height="3" rx="1"/>
+  </g>
+</svg>
