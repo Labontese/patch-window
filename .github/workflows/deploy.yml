@@ -1,5 +1,4 @@
-# Place this file at .github/workflows/deploy.yml in the patchwindow repo
-name: Deploy patchwindow.serverdigital.net to Hetzner
+name: Build and push image to GHCR
 
 on:
   push:
@@ -7,59 +6,117 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: "22"
-  DEPLOY_PATH: /home/deploy/server/sites/patchwindow
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/labontese/patch-window
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=,format=short
+            type=raw,value={{date 'YYYYMMDD'}}
 
-      - name: Prepare deploy directory
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run DB migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          mkdir -p deploy
-          cp Dockerfile package.json package-lock.json next.config.mjs mdx-components.tsx tsconfig.json drizzle.config.ts deploy/
-          cp -r app content lib public deploy/
+          npm ci --ignore-scripts
+          npx drizzle-kit migrate
 
-      - name: Deploy source
-        uses: easingthemes/ssh-deploy@v5.1.1
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          REMOTE_HOST: ${{ secrets.DEPLOY_HOST }}
-          REMOTE_USER: deploy
-          SOURCE: "deploy/"
-          TARGET: ${{ env.DEPLOY_PATH }}
-          ARGS: "-rlgoDzvc --delete"
+      - name: Smoke test
+        run: |
+          echo "Starting container for smoke test..."
+          docker run -d \
+            --name patchwindow-smoke \
+            --health-cmd "wget -qO- http://localhost:3000/health || exit 1" \
+            --health-interval 5s \
+            --health-timeout 5s \
+            --health-retries 6 \
+            --health-start-period 20s \
+            -e NODE_ENV=production \
+            -e DATABASE_URL="postgresql://fake:fake@localhost:5432/fake" \
+            -e RESEND_API_KEY="re_fake" \
+            -p 3000:3000 \
+            ${{ env.IMAGE_NAME }}:latest
 
-      - name: Rebuild and restart container
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: deploy
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            cd ~/server
-            git fetch origin main
-            git checkout origin/main -- docker-compose.yml .env.example
-            docker compose up -d --build --force-recreate patchwindow
+          echo "Waiting for container health check..."
+          for i in $(seq 1 18); do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' patchwindow-smoke 2>/dev/null || echo "missing")
+            echo "  Attempt $i/18: $STATUS"
+            if [ "$STATUS" = "healthy" ]; then
+              echo "Container is healthy."
+              docker stop patchwindow-smoke
+              docker rm patchwindow-smoke
+              exit 0
+            fi
+            if [ "$STATUS" = "unhealthy" ]; then
+              echo "Container is unhealthy. Logs:"
+              docker logs patchwindow-smoke
+              docker stop patchwindow-smoke
+              docker rm patchwindow-smoke
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo "Timed out waiting for health. Logs:"
+          docker logs patchwindow-smoke
+          docker stop patchwindow-smoke
+          docker rm patchwindow-smoke
+          exit 1
 
 # =============================================================
-# Required GitHub Secrets (add in repo Settings > Secrets):
+# Secrets som behövs på patchwindow-repot:
 #
-#   DEPLOY_HOST       — IP or hostname of the Hetzner server
-#                       (Daniel already uses this for holmdigital)
-#   DEPLOY_SSH_KEY    — Private SSH key for the deploy user
-#                       (same key as holmdigital if same server)
-#   RESEND_API_KEY    — Already configured by Daniel
-#   DATABASE_URL      — postgresql://patchwindow:<pw>@postgres:5432/patchwindow
-#                       Set this after running the postgres init script
+#   GITHUB_TOKEN  — automatisk, GitHub sköter auth mot GHCR
+#
+# Secrets som INTE längre behövs (kan rensas):
+#   DEPLOY_HOST   — användes av den gamla rsync-deployen
+#   DEPLOY_SSH_KEY — användes av den gamla rsync-deployen
+#
+# Runtime-secrets hanteras som env-vars på servern (ej i image):
+#   PATCHWINDOW_DATABASE_URL
+#   PATCHWINDOW_RESEND_API_KEY
+#
+# Image-visibility:
+#   Repot Labontese/patch-window är public, vilket gör GHCR-imagen
+#   public by default efter första pushen. Ingen pull-auth behövs
+#   på servern. Om du vill göra imagen private: gå till
+#   ghcr.io > patch-window > Package settings > Change visibility.
+#   Då behöver du sätta upp docker login på servern med en PAT som
+#   har 'read:packages'-scope.
 # =============================================================

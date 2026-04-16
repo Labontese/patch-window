@@ -44,9 +44,9 @@ Se `docs/GETTING-STARTED.md` för hur du skriver och publicerar artiklar.
 
 ## Deploy
 
-Se `docs/DEPLOYMENT.md` for att förstå hela deploy-flödet.
+Se `docs/DEPLOYMENT.md` för att förstå hela deploy-flödet.
 
-Kortversion: push till `main` triggar GitHub Actions som bygger och deployer till Hetzner via SSH.
+Deploy sker via GHCR (GitHub Container Registry). Push till `main` triggar GitHub Actions som bygger en Docker-image och pushar den till `ghcr.io/labontese/patch-window`. Watchtower på servern hämtar den nya versionen nattetid, eller manuellt med `docker compose pull patchwindow && docker compose up -d patchwindow`.
 
 ## Databasschema
 
