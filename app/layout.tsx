@@ -86,6 +86,11 @@ export default function RootLayout({
         </a>
         {children}
         <script
+          defer
+          src="https://analytics.holmdigital.se/script.js"
+          data-website-id="2e94eb8f-6fe9-47d6-b1af-a8485f65d4ba"
+        />
+        <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: safeJsonLd(organizationJsonLd),
