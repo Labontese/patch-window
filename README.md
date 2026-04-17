@@ -44,9 +44,9 @@ Se `docs/GETTING-STARTED.md` för hur du skriver och publicerar artiklar.
 
 ## Deploy
 
-Se `docs/DEPLOYMENT.md` för att förstå hela deploy-flödet.
+Se `docs/DEPLOYMENT.md` för hela deploy-flödet.
 
-Deploy sker via GHCR (GitHub Container Registry). Push till `main` triggar GitHub Actions som bygger en Docker-image och pushar den till `ghcr.io/labontese/patch-window`. Watchtower på servern hämtar den nya versionen nattetid, eller manuellt med `docker compose pull patchwindow && docker compose up -d patchwindow`.
+Deploys sker manuellt via SSH. Källkoden ligger klonad på servern (`~/server/sites/patchwindow/`). Deploy-skriptet kör `git pull`, bygger Docker-imagen lokalt och startar containern.
 
 ## Databasschema
 

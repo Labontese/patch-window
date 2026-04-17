@@ -1,0 +1,219 @@
+---
+title: "@holmdigital/engine: the accessibility scanner that maps WCAG failures to actual law"
+format: deep-dive
+slug: holmdigital-engine-wcag-compliance-tool
+pathway: accessibility
+tags:
+  - accessibility
+  - wcag
+  - open-source
+  - ci-cd
+  - eaa
+  - typescript
+publishedAt: 2026-04-17T10:00:00+02:00
+excerpt: "Axe tells you which WCAG criterion you failed. @holmdigital/engine tells you which law you broke and which authority can fine you for it. Here's how it works."
+draft: false
+lang: en
+---
+
+Axe tells you which WCAG criterion you failed. It doesn't tell you whether that failure puts you in violation of Sweden's DOS Act, Germany's BITV 2.0, or the European Accessibility Act. That gap is what [`@holmdigital/engine`](https://github.com/holmdigital/a11y-hd) is built to close.
+
+I've been building this tool together with Karin at [Holm Digital](https://holmdigital.se) for the past several months. It's open source under MIT. This is what it does, how it compares to the established alternatives, and where it still has room to grow.
+
+## What @holmdigital/engine actually is
+
+It's a monorepo with three npm packages under the `@holmdigital` namespace:
+
+- `@holmdigital/engine`: the scanner. Puppeteer drives a headless browser, axe-core runs the WCAG checks, and the engine adds Shadow DOM traversal, SPA support, and i18n reporting.
+- `@holmdigital/standards`: a machine-readable database of 46 WCAG convergence rules, each mapped to EN 301 549 and national legislation in 16 countries.
+- `@holmdigital/components`: 29 accessible React primitives built to the same rules the scanner enforces.
+
+The repo is TypeScript throughout (93% TS, 7% JS). Runtime requirement is Node 20+. The monorepo uses pnpm workspaces.
+
+## The standards database is the differentiator
+
+Most accessibility scanners stop at WCAG. They tell you that your color contrast ratio is 3.2:1 when it needs to be at least 4.5:1 for WCAG 1.4.3. That's useful.
+
+What they don't tell you: in Sweden, that failure is a violation of Lag 2018:1937 and falls under the supervision of Digg. In Italy, it's covered by Legge Stanca. In Australia, it implicates the Disability Discrimination Act 1992. The enforcement body, the legal reference, and the urgency all differ by jurisdiction.
+
+The `@holmdigital/standards` package makes this queryable:
+
+```javascript
+import { getEN301549Mapping, getEnforcementBody, getNationalLawByFramework }
+  from '@holmdigital/standards';
+
+getEN301549Mapping('1.4.3', 'sv');
+// { wcagCriteria: "1.4.3", en301549Criteria: "9.1.4.3", dosLagenReference: "Lag 2018:1937 §7..." }
+
+getEnforcementBody('SE', 'public');   // "Agency for Digital Government (Digg)"
+getEnforcementBody('SE', 'private');  // "Swedish Post and Telecom Authority (PTS)"
+
+getNationalLawByFramework('EAA', 'DE');
+// { fullName: "Barrierefreiheitsstärkungsgesetz", law: "BFSG", ... }
+```
+
+The `getEnforcementBody` call takes a sector argument. Public sector organizations fall under the Web Accessibility Directive (WAD). Private companies fall under the European Accessibility Act (EAA), which came into force in June 2025. The enforcement body differs in several countries depending on which framework applies to you.
+
+You can explore the full 46-rule database interactively at [wiki.holmdigital.se/standards](https://wiki.holmdigital.se/standards). It shows severity ratings, national law references, and React code examples for each rule.
+
+## Running the scanner
+
+Install the engine:
+
+```bash
+npm install @holmdigital/engine
+```
+
+Or clone and build the full monorepo:
+
+```bash
+git clone git@github.com:holmdigital/a11y-hd.git
+cd a11y-hd
+npm install
+npm run build
+```
+
+The CLI command is `npx hd-a11y-scan`. Basic usage:
+
+```bash
+npx hd-a11y-scan https://example.com
+```
+
+Useful flags:
+
+```bash
+# Scan against Swedish public sector requirements, output as JSON
+npx hd-a11y-scan https://example.com --country SE --sector public --json
+
+# CI mode: exit 1 if any critical failures
+npx hd-a11y-scan https://example.com --ci --threshold critical
+
+# Generate a JUnit XML report for your CI dashboard
+npx hd-a11y-scan https://example.com --junit ./reports/a11y-junit.xml
+
+# Generate an accessibility statement (HTML or Markdown)
+npx hd-a11y-scan https://example.com \
+  --statement ./a11y-statement.html \
+  --country SE \
+  --org "Stockholms kommun" \
+  --email "tillganklighet@stockholm.se"
+
+# Test on mobile viewport
+npx hd-a11y-scan https://example.com --viewport mobile
+```
+
+The `--sector` flag matters. Set it to `public` if you're a government body (WAD applies). Set it to `private` for commercial organizations (EAA applies). The engine routes the scan results to the correct legal framework based on this.
+
+The `--lang` flag controls the language of the output report. Supported: `sv`, `en`, `no`, `fi`, `da`, `de`, `fr`, `es`, `nl`, `it`, `pt`, `pl`, `en-gb`, `en-us`, `en-ca`, `en-au`.
+
+## CI/CD integration
+
+The `--ci` flag exits with code 1 when the scan finds issues at or above the threshold level. That's enough to fail a pipeline.
+
+A GitHub Actions step:
+
+```yaml
+- name: Run accessibility scan
+  run: |
+    npx hd-a11y-scan ${{ env.SITE_URL }} \
+      --ci \
+      --threshold critical \
+      --junit ./reports/a11y.xml \
+      --country SE \
+      --sector private
+
+- name: Upload report
+  uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: a11y-report
+    path: ./reports/a11y.xml
+```
+
+The JUnit output integrates with GitHub Actions test summaries and most CI dashboards (Jenkins, GitLab CI, TeamCity). The `--threshold` flag lets you decide what breaks the build. I use `critical` in CI and run `high` locally to catch issues earlier.
+
+## Shadow DOM and SPAs
+
+Both are handled by the engine. Most CLI scanners fall short here.
+
+Standard axe-core scans the document's light DOM. Components built with Shadow DOM (Web Components, some design systems) are invisible to it unless the scanner explicitly traverses into shadow roots. The engine does this traversal.
+
+SPA support means the scanner waits for JavaScript to execute and the DOM to settle before running checks. Puppeteer controls the browser, so the engine sees what a real user's browser sees, not the raw HTML from the server.
+
+## Comparing to axe, Lighthouse, and Pa11y
+
+This comparison comes partly from the project's own README, so read it with that context. I'll add my own read where it's relevant.
+
+| | @holmdigital/engine | axe-core | Lighthouse | Pa11y |
+|---|---|---|---|---|
+| WCAG rule count | 46 convergence rules | 80+ checks | ~40 audits | ~80 checks |
+| Legal framework mapping | 16 countries + EU | None | None | None |
+| EN 301 549 to national law | Yes | No | No | No |
+| Enforcement body lookup | Yes, sector-aware | No | No | No |
+| Shadow DOM | Yes | Partial | Partial | Partial |
+| SPA support | Yes (Puppeteer) | Yes | Yes | Yes |
+| Accessibility statement generator | Yes | No | No | No |
+| JUnit XML output | Yes | No | No | No |
+| CI mode (exit code) | Yes | Yes | Yes | Yes |
+| License | MIT | MIT | Apache 2.0 (Chromium) | MIT |
+
+The rule count comparison deserves a caveat. axe-core's 80+ checks and Pa11y's ~80 checks cover a wider raw surface than the engine's 46 convergence rules. The tradeoff is specificity: the 46 rules in `@holmdigital/standards` are the ones that map cleanly to EN 301 549 and national law. That's the design choice.
+
+axe-core is the industry standard. It has a larger community, browser extensions, IDE plugins (VS Code, JetBrains), and it underlies several other tools including Lighthouse's accessibility audits. If you're not operating under EU or national accessibility law, axe-core is the right default.
+
+Lighthouse runs inside Chrome DevTools and gives you performance, SEO, and accessibility in one pass. The accessibility score is axe-core under the hood. It won't tell you anything about legal compliance.
+
+Pa11y is the simplest of the three for CLI automation. It's fast, easy to configure, and has a long track record. No legal mappings.
+
+The gap that `@holmdigital/engine` fills is specific: if you need to know which regulatory body governs a failure, which article of which national law it falls under, and whether EAA or WAD applies to your organization, none of the other tools answer that.
+
+## The React component library
+
+The `@holmdigital/components` package has 29 React primitives built to the same standards the scanner enforces. The `AccessibilityStatement` component generates compliant HTML accessibility statements for 13 locales:
+
+```javascript
+import { AccessibilityStatement } from '@holmdigital/components';
+
+<AccessibilityStatement
+  country="SE"
+  sector="public"
+  organizationName="Stockholms kommun"
+  websiteUrl="https://stockholm.se"
+  complianceLevel="partial"
+  lastReviewDate={new Date()}
+  contactEmail="tillganklighet@stockholm.se"
+  locale="sv"
+/>
+```
+
+Swedish public sector organizations are required under DOS Act (Lag 2018:1937) to publish an accessibility statement. This component generates one that meets the format requirements.
+
+The other components (`Heading`, `Button`, `FormField`, `ErrorSummary`, `Checkbox`, `Select`, `Radio`) are standard accessible primitives with no Radix dependency. They're built to be compliant by default, not to be styled.
+
+## EAA context
+
+The European Accessibility Act came into force 28 June 2025. It applies to private companies selling products and services in the EU. The requirements are broadly aligned with WCAG 2.1 AA via EN 301 549.
+
+The practical difference from WAD (which applies to public sector bodies) is the enforcement path. WAD enforcement goes through national supervisory authorities (in Sweden: Digg). EAA enforcement routes through different bodies in many countries, and the sanctions regime differs.
+
+For Swedish private companies, EAA enforcement falls under PTS. For German companies, it's under the relevant Marktüberwachungsbehörden. The `getEnforcementBody` API handles this routing.
+
+The `getEAADeadlineRules()` function in `@holmdigital/standards` returns the rules that carry urgency flags for EAA compliance post-June 2025. These are the rules you prioritize if you're a private company that was already compliant with WAD but hasn't reviewed EAA-specific requirements.
+
+The wiki has documentation on the [EU legal framework](https://wiki.holmdigital.se/legal-framework), [compliance guides](https://wiki.holmdigital.se/compliance), and the [authorities breakdown by country](https://wiki.holmdigital.se/authorities).
+
+## What's not there yet
+
+The comparison table above shows the rule count gap versus axe-core. 46 rules versus 80+ is real. Some WCAG success criteria aren't covered, and the standards database doesn't yet include the full WCAG 2.2 criterion set.
+
+Current versions as of this writing: `@holmdigital/engine@2.4.1`, `@holmdigital/standards@2.3.0`, `@holmdigital/components@2.3.0`.
+
+There are 0 open issues on the repo as of today. That's consistent with a project in active development by a small team, not necessarily a sign of maturity.
+
+## Where to go from here
+
+The source is at [github.com/holmdigital/a11y-hd](https://github.com/holmdigital/a11y-hd).
+
+The wiki covers [installation](https://wiki.holmdigital.se/installation), [configuration](https://wiki.holmdigital.se/config), [CI/CD setup](https://wiki.holmdigital.se/ci-cd), and the [component library](https://wiki.holmdigital.se/components). The [Standards Explorer](https://wiki.holmdigital.se/standards) is the fastest way to browse all 46 rules with their legal mappings.
+
+If you're running a site that falls under national accessibility law in any of the 16 jurisdictions the engine covers and want to know your actual legal exposure — not just which WCAG criterion failed — the CLI scan is a 30-second install. The output will tell you more than a raw WCAG report can.

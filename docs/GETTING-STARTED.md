@@ -73,6 +73,11 @@ Exempel: `content/pathways/linux-for-devs.mdx` ger `/pathway/linux-for-devs`.
 
 ## Publicera
 
-Push till `main`-branchen triggar GitHub Actions. Deploy tar ungefär 2-3 minuter.
+Push till `main` deployer ingenting automatiskt. Deploy sker manuellt via SSH på servern.
 
-Följ statusen under fliken "Actions" i GitHub-repot.
+```bash
+ssh deploy@37.27.107.71 -i d:/hetzner-project/.ssh/id_ed25519_hetzner \
+  "bash ~/server/hetzner-project/scripts/deploy-patchwindow.sh"
+```
+
+Se `docs/DEPLOYMENT.md` för detaljer.
