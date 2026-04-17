@@ -8,6 +8,9 @@ export default function SiteFooter() {
       <div className="site-wrapper">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>© {year} Daniel Gustafsson / Patch Window</span>
+          <a href='https://ko-fi.com/M4M41XYZRX' target='_blank' rel='noopener noreferrer'>
+            <img height='36' style={{ border: '0px', height: '36px' }} src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' alt='Buy Me a Coffee at ko-fi.com' />
+          </a>
           <nav aria-label="Footer navigation" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <Link href="/about" className="nav-link" style={{ fontSize: '0.8125rem' }}>
               About
