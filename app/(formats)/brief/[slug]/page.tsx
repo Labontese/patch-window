@@ -64,7 +64,7 @@ export default async function BriefPage({ params }: Props) {
     publisher: {
       '@type': 'Organization',
       name: 'Patch Window',
-      logo: { '@type': 'ImageObject', url: 'https://patchwindow.serverdigital.net/logo.png' },
+      logo: { '@type': 'ImageObject', url: 'https://patchwindow.serverdigital.net/logo/glyph-window.svg' },
     },
     mainEntityOfPage: {
       '@type': 'WebPage',

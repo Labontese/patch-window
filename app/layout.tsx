@@ -55,7 +55,7 @@ const organizationJsonLd = {
   '@type': 'Organization',
   name: 'Patch Window',
   url: SITE_URL,
-  logo: `${SITE_URL}/logo.png`,
+  logo: `${SITE_URL}/logo/glyph-window.svg`,
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'editorial',
