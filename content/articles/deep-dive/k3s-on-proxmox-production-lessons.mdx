@@ -23,7 +23,7 @@ Three Proxmox nodes. K3s runs inside VMs, not on bare metal. Each VM has 4 vCPUs
 
 The network has 11 VLANs. K3s nodes are in VLAN 30 (infrastructure services). pfSense handles inter-VLAN routing. The 10GbE backbone is a Quanta LB6M.
 
-K3s uses Flannel for CNI (default). Traefik 2.x as ingress controller (bundled with K3s, not swapped out).
+K3s uses Flannel for CNI (default). Traefik v3 as ingress controller (bundled with K3s, not swapped out).
 
 This setup is not identical to a cloud Kubernetes deployment. Some of what I found may not apply to your environment.
 
@@ -106,7 +106,7 @@ This is an environment-specific issue. If your K3s nodes are on a flat layer-2 n
 
 ## Problem 4: Traefik and Let's Encrypt on a private network
 
-The bundled Traefik v2 uses HTTP-01 ACME challenges by default. HTTP-01 requires the domain to be publicly reachable. My K3s cluster is on an internal network. Let's Encrypt can't reach it.
+The bundled Traefik v3 uses HTTP-01 ACME challenges by default. HTTP-01 requires the domain to be publicly reachable. My K3s cluster is on an internal network. Let's Encrypt can't reach it.
 
 The solution is DNS-01 challenges. Traefik supports DNS-01 via environment variables for supported DNS providers. I use Cloudflare.
 

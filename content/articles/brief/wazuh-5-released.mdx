@@ -1,5 +1,5 @@
 ---
-title: "Wazuh 5.0 ships with new agent architecture and rewritten indexer"
+title: "Wazuh 5.0 beta1 ships with new agent architecture and rewritten indexer"
 format: brief
 slug: wazuh-5-released
 pathway: aiops-observability
@@ -9,12 +9,12 @@ tags:
   - security
   - monitoring
 publishedAt: 2026-04-15T09:00:00+02:00
-excerpt: "Wazuh 5.0 is out with a rewritten agent communication layer and a new built-in indexer. Upgrade path from 4.x is documented but requires a full stack restart."
+excerpt: "Wazuh 5.0 beta1 is out with a rewritten agent communication layer and a new built-in indexer. Upgrade path from 4.x is documented but requires a full stack restart."
 draft: false
 lang: en
 ---
 
-Wazuh 5.0 was released on April 14, 2026. The two changes that affect existing deployments the most: the agent communication protocol has been rewritten (agents on 4.x will need upgrading before they reconnect), and the bundled OpenSearch-based indexer is replaced with Wazuh's own indexer component.
+Wazuh 5.0 beta1 was released in April 2026. The two changes that affect existing deployments the most: the agent communication protocol has been rewritten (agents on 4.x will need upgrading before they reconnect), and the bundled OpenSearch-based indexer is replaced with Wazuh's own indexer component.
 
 The new indexer is meant to reduce the operational overhead of managing OpenSearch tuning separately from Wazuh. Whether it actually does depends on how heavily you've customized your index templates. If you've added custom mappings, test the migration on a non-production copy first.
 
