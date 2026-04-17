@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { safeJsonLd } from '@/lib/jsonld'
 
 export interface BreadcrumbItem {
   label: string
@@ -44,7 +45,7 @@ export default function Breadcrumbs({ items }: Props) {
       </nav>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
     </>
   )

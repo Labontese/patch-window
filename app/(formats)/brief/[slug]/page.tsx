@@ -24,6 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: meta.title,
+    alternates: { canonical: url },
     description: meta.excerpt,
     openGraph: {
       title: meta.title,
@@ -54,6 +55,7 @@ export default async function BriefPage({ params }: Props) {
     '@type': 'NewsArticle',
     headline: meta.title,
     description: meta.excerpt,
+    image: `https://patchwindow.serverdigital.net/${meta.format}/${slug}/opengraph-image`,
     datePublished: meta.publishedAt,
     dateModified: meta.updatedAt ?? meta.publishedAt,
     author: {

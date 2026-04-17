@@ -40,6 +40,11 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  alternates: {
+    types: {
+      'application/rss+xml': 'https://patchwindow.serverdigital.net/feed.xml',
+    },
+  },
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
@@ -61,6 +66,7 @@ const organizationJsonLd = {
     contactType: 'editorial',
     email: 'daniel@serverdigital.net',
   },
+  sameAs: ['https://github.com/holmdigital'],
 }
 
 const websiteJsonLd = {
