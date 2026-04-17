@@ -4,6 +4,7 @@ export const PATHWAYS = [
   'infrastructure-strategy',
   'devops-culture',
   'homelab-edge',
+  'accessibility',
 ] as const
 
 export type Pathway = (typeof PATHWAYS)[number]
