@@ -316,6 +316,8 @@ TaskUpdate({ taskId: "4", addBlockedBy: ["3"] })
 
 Nova, Sage, and Rex claim tasks from the shared list when they become available. The system unlocks each task automatically when its blocker completes.
 
+This team uses artifact files for handoffs rather than per-agent memory. Add `memory: project` to an agent's profile when it needs to accumulate state across runs -- for example, a reviewer that learns project conventions over time.
+
 **`CLAUDE.md` (excerpt):**
 
 ```markdown
@@ -334,8 +336,8 @@ due to contradictory requirements.
 
 ## Handoff artifacts
 Nova delivers: a research brief in `artifacts/research-brief.md`.
-Sage delivers: a draft in `Team/drafts/[slug]-draft.md`.
-Rex delivers: a review report in `Team/reviews/[slug]-review.md`.
+Sage delivers: a draft in `artifacts/drafts/[slug]-draft.md`.
+Rex delivers: a review report in `artifacts/reviews/[slug]-review.md`.
 ```
 
 **`.claude/agents/nova.md`:**
@@ -384,7 +386,7 @@ Write the article:
 - Do not introduce claims that are not in the research brief.
 - Do not use: "robust", "powerful", "seamless", "cutting-edge", "it is worth noting".
 
-Save your output to Team/drafts/[slug]-draft.md.
+Save your output to artifacts/drafts/[slug]-draft.md.
 ```
 
 **`.claude/agents/rex.md`:**
@@ -411,7 +413,7 @@ For each checklist item:
 
 Final decision: PASS if all items pass. FAIL if any item fails.
 
-Save your review to Team/reviews/[slug]-review.md.
+Save your review to artifacts/reviews/[slug]-review.md.
 ```
 
 **`.claude/agents/emma.md`:**
@@ -427,7 +429,7 @@ effort: medium
 You are Emma. You coordinate the content team and deliver final output to the user.
 
 Before delivering:
-1. Read Team/reviews/[slug]-review.md.
+1. Read artifacts/reviews/[slug]-review.md.
 2. If Rex returned PASS, present the draft location to the user and summarize the review result.
 3. If Rex returned FAIL, do not deliver the draft. List the specific failures and ask the user whether to revise or escalate.
 
