@@ -22,7 +22,14 @@ export default function ArticleCard({ article }: Props) {
     <article className={cardClass}>
       <FormatTag format={article.format} />
       <h3 className="article-card__title">
-        <Link href={href}>{article.title}</Link>
+        <Link
+          href={href}
+          data-umami-event="article-click"
+          data-umami-event-slug={article.slug}
+          data-umami-event-format={article.format}
+        >
+          {article.title}
+        </Link>
       </h3>
       <div className="article-meta" style={{ marginBottom: '0.5rem' }}>
         <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
@@ -30,7 +37,12 @@ export default function ArticleCard({ article }: Props) {
           <span className="reading-time">{article.readingTime} min read</span>
         )}
         {article.pathway && (
-          <Link href={`/pathway/${article.pathway}`} className="pathway-badge">
+          <Link
+            href={`/pathway/${article.pathway}`}
+            className="pathway-badge"
+            data-umami-event="pathway-click"
+            data-umami-event-pathway={article.pathway}
+          >
             {article.pathway}
           </Link>
         )}

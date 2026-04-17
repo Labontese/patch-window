@@ -30,16 +30,16 @@ export default function SiteHeader() {
             <Logo />
           </Link>
 
-          <Link href="/deep-dive" className="nav-link">
+          <Link href="/deep-dive" className="nav-link" data-umami-event="nav-click" data-umami-event-item="deep-dives">
             Deep Dives
           </Link>
-          <Link href="/hot-take" className="nav-link">
+          <Link href="/hot-take" className="nav-link" data-umami-event="nav-click" data-umami-event-item="hot-takes">
             Hot Takes
           </Link>
-          <Link href="/brief" className="nav-link">
+          <Link href="/brief" className="nav-link" data-umami-event="nav-click" data-umami-event-item="briefs">
             Briefs
           </Link>
-          <Link href="/about" className="nav-link">
+          <Link href="/about" className="nav-link" data-umami-event="nav-click" data-umami-event-item="about">
             About
           </Link>
         </nav>

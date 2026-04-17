@@ -100,7 +100,12 @@ export default async function DeepDivePage({ params }: Props) {
               <p style={{ fontWeight: 700, marginBottom: '0.25rem', color: 'var(--color-text)' }}>
                 Pathway
               </p>
-              <a href={`/pathway/${meta.pathway}`} className="pathway-badge">
+              <a
+                href={`/pathway/${meta.pathway}`}
+                className="pathway-badge"
+                data-umami-event="pathway-click"
+                data-umami-event-pathway={meta.pathway}
+              >
                 {meta.pathway}
               </a>
             </div>
@@ -111,7 +116,13 @@ export default async function DeepDivePage({ params }: Props) {
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                   {meta.tags.map((tag) => (
-                    <a key={tag} href={`/tag/${tag}`} className="tag-pill">
+                    <a
+                      key={tag}
+                      href={`/tag/${tag}`}
+                      className="tag-pill"
+                      data-umami-event="tag-click"
+                      data-umami-event-tag={tag}
+                    >
                       {tag}
                     </a>
                   ))}

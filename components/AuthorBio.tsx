@@ -4,7 +4,7 @@ export default function AuthorBio() {
   return (
     <aside className="author-bio" aria-label="About the author">
       <p className="author-bio__name">
-        <Link href="/about/daniel">Daniel Gustafsson</Link>
+        <Link href="/about/daniel" data-umami-event="author-bio-click">Daniel Gustafsson</Link>
       </p>
       <p>
         Daniel Gustafsson has run Linux since 1995. He tests everything he writes
