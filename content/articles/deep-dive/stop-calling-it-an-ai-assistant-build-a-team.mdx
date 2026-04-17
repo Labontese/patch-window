@@ -1,0 +1,418 @@
+---
+title: "Stop Calling It an AI Assistant. Build a Team."
+format: deep-dive
+slug: stop-calling-it-an-ai-assistant-build-a-team
+pathway: devops-culture
+tags:
+  - ai
+  - claude
+  - agent-teams
+  - devops
+  - automation
+publishedAt: 2026-04-17T09:00:00+02:00
+excerpt: "Single-agent prompts collapse under their own weight. Here's how to design Claude Code agent teams that actually hold up: org chart first, profiles second, token budget last."
+draft: false
+lang: en
+---
+
+Here is what a single-agent prompt looks like after six months of growth: it is 4,000 words. It handles research, drafting, code review, client communication, and "anything else that comes up." It references internal formats by name without defining them. It uses the phrase "act as a senior developer" in three different sections, each meaning something different. When you ask it to do a straightforward task, it gets confused about which role applies. When you add a new requirement, you break an old one. You spend more time maintaining the prompt than doing actual work.
+
+This is the swiss-army-knife failure mode. One agent, infinite surface area, zero accountability.
+
+The fix is not a smarter prompt. The fix is what you would do with a human team: break the work into discrete roles, hire for each role, and define how they hand off to each other. This article walks through how to do that with Claude Code's agent teams, what changed with Opus 4.7, and how to avoid the coordination mistakes that cost you money and correctness.
+
+---
+
+## What an Agent Team Is -- and What It Isn't
+
+An agent team is a set of independent agents, each with a defined role, running under a shared project context. Each agent reads its own profile, has its own model assignment, and operates on a bounded scope of work.
+
+What it is not: a single agent with multiple "modes." It is not a chain of prompts duct-taped together with copy-paste. It is not a workflow where one agent does everything and calls itself a team.
+
+The key constraint that makes a team useful is the same constraint that makes human organizations useful: no single person (or agent) has the full picture. The researcher does not write the final document. The writer does not approve the budget. The reviewer does not redesign the system. Specialization forces clarity. Clarity reduces errors.
+
+In Claude Code, this works through the `agents/` directory. Each file in that directory is a profile for one agent. The team lead -- usually the agent you talk to directly -- reads the project `CLAUDE.md` and delegates to the right specialist. Specialists return results. The lead synthesizes or escalates.
+
+Three things make this different from a prompt chain: agents can run in parallel, each agent's context is scoped to its role, and the `blockedBy` mechanism provides explicit dependency tracking. More on all three below.
+
+---
+
+## Designing the Org Chart Before You Write a Single Prompt
+
+The single most common mistake with agent teams is starting with the tool, not the organization. Someone enables the feature flag, creates three agents named Agent1/Agent2/Agent3, and then figures out what they should do. This produces teams that duplicate work, step on each other, and produce inconsistent output.
+
+Do the org chart first. On paper. Ask four questions:
+
+**What are the distinct types of work?** Research and writing are different. Writing and review are different. Code generation and code review are different. If two things require different expertise, they probably need different agents.
+
+**What are the handoff points?** Where does one type of work end and another begin? What is the artifact that moves between agents? A research summary, a draft, a diff, a test result?
+
+**What decisions require a human?** Agent teams are not autonomous by default, and they should not be. Identify the points where a human needs to say yes before work continues. Build escalation into the design.
+
+**Which tasks can run in parallel?** If two research tasks do not depend on each other, they can run simultaneously. If the writer needs the researcher's output, that is a serial dependency. Get this right up front or you will either block unnecessarily or produce garbage.
+
+Write this down before you open a text editor. A 10-minute whiteboard session prevents three days of debugging why Agent2 is ignoring Agent1's output.
+
+---
+
+## Technical Setup -- Claude Code Agent Teams in Practice
+
+Set the environment variable:
+
+```bash
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+Restart Claude Code. The agent team feature is now active.
+
+Directory structure:
+
+```text
+project-root/
+  CLAUDE.md          # Project-wide instructions, rules, team structure
+  agents/
+    lead.md          # Team lead profile
+    researcher.md    # Researcher profile
+    writer.md        # Writer profile
+    reviewer.md      # Reviewer profile
+  memory/
+    team.md          # Persistent team state
+    project.md       # Persistent project context
+```
+
+`CLAUDE.md` is the constitution. It defines the project, the team structure, the escalation policy, and any constraints that apply to all agents. Every agent reads it.
+
+Agent profiles live in `agents/`. Each file is a markdown document with YAML frontmatter:
+
+```yaml
+---
+name: Nova
+role: Researcher
+model: claude-sonnet-4-6
+effort: medium
+---
+```
+
+The `model` field sets which Claude model this agent runs on. The `effort` field controls how much compute the agent applies to each task. Valid values for `effort`: `xhigh`, `high`, `medium`, `low`.
+
+The body of the profile file is the agent's system prompt: its role, its responsibilities, its constraints, and its output format.
+
+The `memory/` directory holds persistent context that survives across sessions. Agents can read and write here. Use it for team state, project decisions, and anything that should not be re-established from scratch each time.
+
+---
+
+## Opus 4.7 Changed the Rules -- Here's What Broke
+
+If you built agent profiles against Opus 4.6 or earlier and upgraded to `claude-opus-4-7`, some things stopped working. Here is the breakdown.
+
+**Literal instruction following.** Opus 4.7 reads your instructions more literally than previous versions. Where 4.6 would infer intent from vague instructions, 4.7 does what you said, not what you meant. If you wrote "check the document for issues," 4.6 might return a structured report. 4.7 might return "yes, there are issues" and stop. Audit your profiles for ambiguous instructions and replace them with specific output requirements.
+
+**Default tone.** Opus 4.7 runs cooler by default. If your profiles relied on implicit warmth or assumed the model would soften outputs naturally, you will notice the difference. Add explicit tone requirements if your role calls for them. "Write in a direct, collegial tone" is a requirement, not a suggestion to be inferred.
+
+**Removed parameters.** Three parameters are gone in Opus 4.7:
+
+- `temperature` -- removed entirely. You cannot set it.
+- `budget_tokens` -- removed. Compute budget is now managed through the `effort` field in YAML.
+- `prefill` -- removed. You cannot pre-seed the model's response.
+
+If your tooling or API calls set any of these parameters, they will either error or be silently ignored. Audit your configuration files and remove these fields. Replace `budget_tokens` usage with the appropriate `effort` level in your agent profile.
+
+**Model ID.** The model identifier is `claude-opus-4-7`. Update any hardcoded references.
+
+The Opus 4.7 changes are not bugs. They reflect a deliberate design choice: explicit over implicit, specified over inferred. Agents built for this model need more precise profiles, but the output is more predictable as a result.
+
+---
+
+## `blockedBy` and the Four Coordination Patterns
+
+`blockedBy` is the dependency mechanism for agent teams. An agent declared with `blockedBy: [AgentA, AgentB]` will not start until both AgentA and AgentB have completed. Without it, agents run in parallel regardless of dependencies.
+
+Four patterns cover most real use cases.
+
+**Pattern 1: Parallel research with synthesis.**
+
+Multiple research agents run simultaneously. A synthesis agent waits for all of them.
+
+```text
+ResearcherA  --\
+ResearcherB  ---+--> Synthesizer
+ResearcherC  --/
+
+Synthesizer: blockedBy: [ResearcherA, ResearcherB, ResearcherC]
+```
+
+Use this when research tasks are independent but the final output requires integrating all findings. The parallel phase cuts elapsed time; the synthesis phase ensures coherence.
+
+**Pattern 2: Linear pipeline.**
+
+Each stage depends on the previous one.
+
+```text
+Researcher --> Writer --> Reviewer --> Publisher
+
+Writer:    blockedBy: [Researcher]
+Reviewer:  blockedBy: [Writer]
+Publisher: blockedBy: [Reviewer]
+```
+
+Use this for content production, code generation, or any workflow where each step requires the previous step's output as input. Each agent works on a finished artifact, not a work-in-progress.
+
+**Pattern 3: Structured debate.**
+
+Three agents take different positions on a question. A decision-maker reads all three and rules.
+
+```text
+ProponentA  --\
+ProponentB  ---+--> DecisionMaker
+SkepticC    --/
+
+DecisionMaker: blockedBy: [ProponentA, ProponentB, SkepticC]
+```
+
+Use this for architecture decisions, strategy questions, or any situation where you want multiple perspectives before committing. Assign explicit positions in each agent's profile. "Argue for approach X" produces better analysis than "consider approach X."
+
+**Pattern 4: Quality gates.**
+
+Work stops at defined checkpoints until a gate passes.
+
+```text
+Planner --> [Human approval] --> Executor --> Reviewer
+
+Executor: blockedBy: [Planner, HumanApproval]
+Reviewer: blockedBy: [Executor]
+```
+
+Use this when the cost of a wrong decision is high. The plan is cheap to produce and cheap to reject. Execution is expensive. Put the gate before the expensive step.
+
+These patterns compose. A real project might use parallel research feeding into a pipeline, with a quality gate before publication.
+
+---
+
+## Token Cost Is a Team Budget -- Spend It Like One
+
+Token cost in a multi-agent system is not a single agent's problem. It is a budget allocation question.
+
+The baseline fact: parallel agents reduce elapsed time but do not reduce total token consumption. Running three research agents simultaneously takes roughly the same tokens as running them sequentially. The benefit is speed. If speed matters, pay for it. If it does not, serialize and save.
+
+Model selection is the biggest lever.
+
+- **Haiku** for routine tasks: classification, extraction, formatting, straightforward review against a checklist. These tasks do not need deep reasoning. Haiku is fast and cheap. Use it.
+- **Sonnet** for standard work: research synthesis, first-draft writing, code generation, moderate-complexity analysis.
+- **Opus** for tasks that require sustained reasoning, complex judgment, or where errors are expensive to fix.
+
+The worst anti-pattern is using Opus for everything because "it's the best." A Haiku reviewer that checks output against an explicit checklist is faster and cheaper than an Opus reviewer doing the same task, and the checklist-constrained output is often more consistent.
+
+The second worst anti-pattern: agents that duplicate context. If ResearcherA and ResearcherB both load the entire project knowledge base, you pay twice. Scope each agent's context to what it actually needs. The `CLAUDE.md` provides shared context; agent profiles provide role-specific context. Do not repeat the shared context inside each agent profile.
+
+Practical model allocation for a content team:
+
+| Role | Model | Rationale |
+|------|-------|-----------|
+| Team lead / coordinator | Sonnet | Coordination and routing, not deep analysis |
+| Researcher | Sonnet | Research synthesis requires judgment |
+| Writer | Sonnet | Writing requires sustained coherence |
+| Reviewer (checklist) | Haiku | Checklist comparison is mechanical |
+| Escalation judgment | Opus | High-stakes decisions justify the cost |
+
+Track your token spend by agent role for the first few projects. The distribution will tell you where to optimize.
+
+---
+
+## Writing Agent Profiles That Actually Work
+
+Most agent profiles fail for one of four reasons.
+
+**Loose verbs without criteria.** "Assess the document," "interpret the requirements," "determine the appropriate approach." These verbs mean different things depending on context, and Opus 4.7 will not fill in the blanks for you. Replace every loose verb with a specific action and a specific output.
+
+Before: "Assess the document for quality issues."
+After: "Read the document. List each factual claim that lacks a source citation. List each section that exceeds 300 words without a concrete example. Return both lists as numbered items."
+
+**Implicit format references.** "Format the output in the standard way," "follow the usual structure," "use our template." The agent has no access to "standard" or "usual" unless you define them in the profile or link to a file that contains them. Write out the format, or reference a specific file path the agent can read.
+
+**Soft requirements.** "Ideally include a summary," "a table of contents would be helpful," "consider adding examples." Soft language produces inconsistent output. If it matters, it is a requirement. Write it as one.
+
+Before: "A summary at the end would be helpful."
+After: "End the document with a summary section. The summary contains three to five bullet points. Each bullet states one finding in plain English."
+
+**Inoperable metaphors.** "Get a feel for the rhythm of the text," "use your judgment about whether this sounds right," "make it feel natural." These are not instructions. An agent cannot operationalize "feel for the rhythm." Replace metaphors with observable criteria.
+
+Before: "Make sure the tone feels right."
+After: "Read each paragraph aloud (simulate this). If a sentence exceeds 25 words, split it. If a paragraph exceeds 100 words, check that it contains at most one main claim. Flag any paragraph that makes a claim without a supporting example."
+
+The test for a well-written profile: give it to someone who has never seen your project and ask them to do the job manually, following the profile literally. If they produce the output you expect, the profile works. If they have questions, the profile has gaps.
+
+---
+
+## Building a Mini-Team From Scratch -- A Complete Example
+
+Here is a complete content team. Four agents, one pipeline, built to spec.
+
+**Team structure:**
+
+- Emma (Team Lead): coordinates, escalates to the user, delegates
+- Nova (Researcher): researches technical background -- Sonnet
+- Sage (Writer): writes based on Nova's output -- Sonnet
+- Rex (Reviewer): checks facts and tone -- Haiku
+
+**Pipeline:**
+
+```text
+Nova researches
+  --> Sage writes (blockedBy: Nova)
+    --> Rex reviews (blockedBy: Sage)
+      --> Emma delivers (blockedBy: Rex)
+```
+
+**`CLAUDE.md` (excerpt):**
+
+```markdown
+# Content Team
+
+## Team structure
+- Emma: team lead, coordinates, escalates only
+- Nova: researcher, Sonnet
+- Sage: writer, Sonnet
+- Rex: reviewer, Haiku
+
+## Escalation policy
+Emma escalates to the user when: Rex returns FAIL twice on the same document,
+Nova cannot find a primary source for a key claim, Sage cannot complete a draft
+due to contradictory requirements.
+
+## Handoff artifacts
+Nova delivers: a research brief in `memory/research-brief.md`.
+Sage delivers: a draft in `Team/drafts/[slug]-draft.md`.
+Rex delivers: a review report in `Team/reviews/[slug]-review.md`.
+```
+
+**`agents/nova.md`:**
+
+```yaml
+---
+name: Nova
+role: Researcher
+model: claude-sonnet-4-6
+effort: medium
+---
+
+You are Nova. You research technical topics and deliver research briefs.
+
+For each research task:
+1. Identify the three to five primary sources most relevant to the topic.
+2. For each source, write: source name, URL or citation, one-sentence summary of what it contributes.
+3. Write a 200-400 word synthesis that answers the specific question you were given.
+4. List any claims you could not verify with a primary source, marked [unverified].
+
+Save your output to memory/research-brief.md. Do not write anything else.
+```
+
+**`agents/sage.md`:**
+
+```yaml
+---
+name: Sage
+role: Writer
+model: claude-sonnet-4-6
+effort: medium
+blockedBy: [Nova]
+---
+
+You are Sage. You write articles based on Nova's research brief.
+
+Before writing:
+1. Read memory/research-brief.md.
+2. Identify the central claim the article will make.
+3. Identify three to four supporting points from the research.
+
+Write the article:
+- Target length: 800-1200 words.
+- One claim per paragraph.
+- No paragraph longer than 150 words.
+- Every claim that appears in the research brief must cite the source inline: (Source Name).
+- Do not introduce claims that are not in the research brief.
+- Do not use: "robust", "powerful", "seamless", "cutting-edge", "it is worth noting".
+
+Save your output to Team/drafts/[slug]-draft.md.
+```
+
+**`agents/rex.md`:**
+
+```yaml
+---
+name: Rex
+role: Reviewer
+model: claude-haiku-4-5
+effort: low
+blockedBy: [Sage]
+---
+
+You are Rex. You review drafts against a checklist. You return PASS or FAIL.
+
+Checklist:
+1. Every factual claim has a source citation.
+2. No paragraph exceeds 150 words.
+3. The following words do not appear: robust, powerful, seamless, cutting-edge, it is worth noting, additionally at the start of a sentence.
+4. The article has a clear central claim stated in the first 100 words.
+
+For each checklist item:
+- PASS: state the item number and "pass".
+- FAIL: state the item number, "fail", and quote the specific text that fails.
+
+Final decision: PASS if all items pass. FAIL if any item fails.
+
+Save your review to Team/reviews/[slug]-review.md.
+```
+
+**`agents/emma.md`:**
+
+```yaml
+---
+name: Emma
+role: Team Lead
+model: claude-sonnet-4-6
+effort: medium
+blockedBy: [Rex]
+---
+
+You are Emma. You coordinate the content team and deliver final output to the user.
+
+Before delivering:
+1. Read Team/reviews/[slug]-review.md.
+2. If Rex returned PASS, present the draft location to the user and summarize the review result.
+3. If Rex returned FAIL, do not deliver the draft. List the specific failures and ask the user whether to revise or escalate.
+
+You do not write, research, or review. You coordinate and report.
+```
+
+This is a working team. Each agent has a single job, explicit inputs, explicit outputs, and defined criteria. Rex does not need Opus to run a checklist. Emma does not need to re-read the research -- she reads the review.
+
+To run this on a new topic: give Emma the task. Emma delegates to Nova. Nova researches and writes to `memory/research-brief.md`. Sage picks up the brief and drafts. Rex reviews the draft. Emma delivers or escalates.
+
+---
+
+## What Does Not Work Yet
+
+Agent teams in Claude Code are experimental. The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` flag is not a stable API. Behavior can change between releases without deprecation warnings.
+
+Persistent state in `memory/` works, but concurrent writes from parallel agents can produce conflicts. If two agents write to the same file simultaneously, the result is undefined. Design your pipelines so that writes happen in serial or to separate files.
+
+The `blockedBy` mechanism does not currently support conditional dependencies. You cannot say "block on A only if A returned FAIL." All gating logic that requires conditions has to be built into the lead agent's profile as decision logic.
+
+Cross-session state works if agents write to `memory/`. It does not work if agents rely on conversational context. Every agent starts with its profile and the files it reads. Nothing else carries over.
+
+Long-running pipelines with many handoff points accumulate context. An agent deep in a pipeline that reads all previous artifacts will have a large context window. Watch for this in complex pipelines. Keep artifacts small and focused.
+
+---
+
+## Next steps
+
+1. Set the environment variable and restart: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+2. Map your current single-agent prompt to a list of distinct role types.
+3. Build the org chart on paper before writing a single profile.
+4. Start with a three-agent team: lead, worker, reviewer. Add agents when you have a specific job that does not fit.
+5. Assign models by task type, not by prestige. Haiku for checklists. Sonnet for drafts.
+6. Write profiles with specific verbs, explicit output formats, and no soft requirements.
+7. Test the team on a small task before scaling to a full workflow.
+8. Audit token spend by agent after the first real run. Optimize where cost and value are out of proportion.
+
+The team concept works because it mirrors how real work gets done: divided by expertise, coordinated by explicit handoffs, and checked at the gates that matter. The technology is experimental. The organizational principle is not.
