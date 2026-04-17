@@ -333,7 +333,7 @@ Nova cannot find a primary source for a key claim, Sage cannot complete a draft
 due to contradictory requirements.
 
 ## Handoff artifacts
-Nova delivers: a research brief in `memory/research-brief.md`.
+Nova delivers: a research brief in `artifacts/research-brief.md`.
 Sage delivers: a draft in `Team/drafts/[slug]-draft.md`.
 Rex delivers: a review report in `Team/reviews/[slug]-review.md`.
 ```
@@ -356,7 +356,7 @@ For each research task:
 3. Write a 200-400 word synthesis that answers the specific question you were given.
 4. List any claims you could not verify with a primary source, marked [unverified].
 
-Save your output to memory/research-brief.md. Do not write anything else.
+Save your output to artifacts/research-brief.md. Do not write anything else.
 ```
 
 **`.claude/agents/sage.md`:**
@@ -372,7 +372,7 @@ effort: medium
 You are Sage. You write articles based on Nova's research brief.
 
 Before writing:
-1. Read memory/research-brief.md.
+1. Read artifacts/research-brief.md.
 2. Identify the central claim the article will make.
 3. Identify three to four supporting points from the research.
 
@@ -436,7 +436,7 @@ You do not write, research, or review. You coordinate and report.
 
 This is a working team. Each agent has a single job, explicit inputs, explicit outputs, and defined criteria. Rex does not need Opus to run a checklist. Emma does not need to re-read the research -- she reads the review.
 
-To run this on a new topic: give Emma the task. Emma delegates to Nova. Nova researches and writes to `memory/research-brief.md`. Sage picks up the brief and drafts. Rex reviews the draft. Emma delivers or escalates.
+To run this on a new topic: give Emma the task. Emma delegates to Nova. Nova researches and writes to `artifacts/research-brief.md`. Sage picks up the brief and drafts. Rex reviews the draft. Emma delivers or escalates.
 
 ---
 
@@ -444,11 +444,11 @@ To run this on a new topic: give Emma the task. Emma delegates to Nova. Nova res
 
 Agent teams in Claude Code are experimental. The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` flag is not a stable API. Behavior can change between releases without deprecation warnings.
 
-Persistent state in `memory/` works, but concurrent writes from parallel agents can produce conflicts. If two agents write to the same file simultaneously, the result is undefined. Design your pipelines so that writes happen in serial or to separate files.
+Persistent state works through the system-managed `memory` frontmatter field (`project`, `user`, or `local`), which stores each agent's `MEMORY.md` under `.claude/agent-memory/<agent-name>/` -- not through a generic project folder called `memory/`. Concurrent writes from parallel agents to the same artifact file can produce conflicts; design your pipelines so that writes happen in serial or to separate files.
 
 The `blockedBy` mechanism does not currently support conditional dependencies. You cannot say "block on A only if A returned FAIL." All gating logic that requires conditions has to be built into the lead agent's profile as decision logic.
 
-Cross-session state works if agents write to `memory/`. It does not work if agents rely on conversational context. Every agent starts with its profile and the files it reads. Nothing else carries over.
+Cross-session state works if agents use the `memory` frontmatter field -- the runtime injects their persisted `MEMORY.md` at startup. It does not work if agents rely on conversational context. Every agent starts with its profile and the files it reads. Nothing else carries over.
 
 Long-running pipelines with many handoff points accumulate context. An agent deep in a pipeline that reads all previous artifacts will have a large context window. Watch for this in complex pipelines. Keep artifacts small and focused.
 
