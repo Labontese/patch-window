@@ -19,7 +19,7 @@ Here is what a single-agent prompt looks like after six months of growth: it is 
 
 This is the swiss-army-knife failure mode. One agent, infinite surface area, zero accountability.
 
-The fix is not a smarter prompt. The fix is what you would do with a human team: break the work into discrete roles, hire for each role, and define how they hand off to each other. This article walks through how to do that with Claude Code's agent teams, what changed with Opus 4.7, and how to avoid the coordination mistakes that cost you money and correctness.
+The fix is not a smarter prompt. The fix is what you would do with a human team: break the work into discrete roles, hire for each role, and define how they hand off to each other. This article walks through how to do that with Claude Code's agent teams -- shipped in Claude Code v2.1.32, independent of any model version -- what changed with Opus 4.7, and how to avoid the coordination mistakes that cost you money and correctness.
 
 ---
 
@@ -31,9 +31,9 @@ What it is not: a single agent with multiple "modes." It is not a chain of promp
 
 The key constraint that makes a team useful is the same constraint that makes human organizations useful: no single person (or agent) has the full picture. The researcher does not write the final document. The writer does not approve the budget. The reviewer does not redesign the system. Specialization forces clarity. Clarity reduces errors.
 
-In Claude Code, this works through the `agents/` directory. Each file in that directory is a profile for one agent. The team lead -- usually the agent you talk to directly -- reads the project `CLAUDE.md` and delegates to the right specialist. Specialists return results. The lead synthesizes or escalates.
+In Claude Code, this works through the `.claude/agents/` directory (project scope) or `~/.claude/agents/` (user scope). Each file in that directory is a profile for one agent. The team lead -- usually the agent you talk to directly -- reads the project `CLAUDE.md` and delegates to the right specialist. Specialists return results. The lead synthesizes or escalates.
 
-Three things make this different from a prompt chain: agents can run in parallel, each agent's context is scoped to its role, and the `blockedBy` mechanism provides explicit dependency tracking. More on all three below.
+Three things make this different from a prompt chain: agents can run in parallel, each agent's context is scoped to its role, and the task dependency mechanism provides explicit blocking and sequencing. More on all three below.
 
 ---
 
@@ -69,35 +69,41 @@ Directory structure:
 
 ```text
 project-root/
-  CLAUDE.md          # Project-wide instructions, rules, team structure
-  agents/
-    lead.md          # Team lead profile
-    researcher.md    # Researcher profile
-    writer.md        # Writer profile
-    reviewer.md      # Reviewer profile
-  memory/
-    team.md          # Persistent team state
-    project.md       # Persistent project context
+  CLAUDE.md              # Project-wide instructions, rules, team structure
+  .claude/
+    agents/
+      lead.md            # Team lead profile
+      researcher.md      # Researcher profile
+      writer.md          # Writer profile
+      reviewer.md        # Reviewer profile
 ```
+
+For agents available across all projects, place profiles in `~/.claude/agents/` instead.
 
 `CLAUDE.md` is the constitution. It defines the project, the team structure, the escalation policy, and any constraints that apply to all agents. Every agent reads it.
 
-Agent profiles live in `agents/`. Each file is a markdown document with YAML frontmatter:
+Agent profiles live in `.claude/agents/`. Each file is a markdown document with YAML frontmatter:
 
 ```yaml
 ---
-name: Nova
-role: Researcher
+name: nova
+description: Researches technical topics
 model: claude-sonnet-4-6
 effort: medium
+memory: project
 ---
 ```
 
 The `model` field sets which Claude model this agent runs on. The `effort` field controls how much compute the agent applies to each task. Valid values for `effort`: `xhigh`, `high`, `medium`, `low`.
 
-The body of the profile file is the agent's system prompt: its role, its responsibilities, its constraints, and its output format.
+The `memory` field controls where the agent's persistent memory is stored. Valid values:
+- `user` → `~/.claude/agent-memory/<agent-name>/`
+- `project` → `.claude/agent-memory/<agent-name>/`
+- `local` → `.claude/agent-memory-local/<agent-name>/`
 
-The `memory/` directory holds persistent context that survives across sessions. Agents can read and write here. Use it for team state, project decisions, and anything that should not be re-established from scratch each time.
+When memory is configured, the system automatically injects the first 200 lines of the agent's `MEMORY.md` into its system prompt at startup. This is not a directory you create manually -- it is managed by the runtime.
+
+The body of the profile file is the agent's system prompt: its role, its responsibilities, its constraints, and its output format.
 
 ---
 
@@ -109,13 +115,13 @@ If you built agent profiles against Opus 4.6 or earlier and upgraded to `claude-
 
 **Default tone.** Opus 4.7 runs cooler by default. If your profiles relied on implicit warmth or assumed the model would soften outputs naturally, you will notice the difference. Add explicit tone requirements if your role calls for them. "Write in a direct, collegial tone" is a requirement, not a suggestion to be inferred.
 
-**Removed parameters.** Three parameters are gone in Opus 4.7:
+**Removed and deprecated parameters.** Several parameters have been pulled across recent releases:
 
-- `temperature` -- removed entirely. You cannot set it.
-- `budget_tokens` -- removed. Compute budget is now managed through the `effort` field in YAML.
-- `prefill` -- removed. You cannot pre-seed the model's response.
+- `temperature`, `top_p`, `top_k` -- removed entirely in Opus 4.7. You cannot set them.
+- `budget_tokens` -- deprecated in Sonnet 4.6, returns a 400 error in Opus 4.7. Replace with the appropriate `effort` level in your agent profile.
+- `prefill` -- removed in Sonnet 4.6, returns a 400 error. Opus 4.7 inherits this -- it is not a new 4.7 breaking change, but if you have not audited for it yet, it will break here too.
 
-If your tooling or API calls set any of these parameters, they will either error or be silently ignored. Audit your configuration files and remove these fields. Replace `budget_tokens` usage with the appropriate `effort` level in your agent profile.
+If your tooling or API calls set any of these parameters, they will error. Audit your configuration files and remove these fields.
 
 **Model ID.** The model identifier is `claude-opus-4-7`. Update any hardcoded references.
 
@@ -123,22 +129,36 @@ The Opus 4.7 changes are not bugs. They reflect a deliberate design choice: expl
 
 ---
 
-## `blockedBy` and the Four Coordination Patterns
+## Task Dependencies and the Four Coordination Patterns
 
-`blockedBy` is the dependency mechanism for agent teams. An agent declared with `blockedBy: [AgentA, AgentB]` will not start until both AgentA and AgentB have completed. Without it, agents run in parallel regardless of dependencies.
+Dependencies between agents are managed through a shared task list, not through agent profile frontmatter. The lead agent creates tasks and sets blocking relationships at runtime using `TaskCreate` and `TaskUpdate`:
+
+```javascript
+TaskCreate({ subject: "Step 1: Research" })
+TaskCreate({ subject: "Step 2: Write" })
+TaskUpdate({ taskId: "2", addBlockedBy: ["1"] })
+```
+
+A task with a `blockedBy` reference will not be claimed until all blocking tasks are completed. The system handles unlock automatically -- when a blocking task is marked completed, dependent tasks become available without any manual intervention. Teammates claim tasks from the shared list themselves; the lead agent does not need to push work to them.
 
 Four patterns cover most real use cases.
 
 **Pattern 1: Parallel research with synthesis.**
 
-Multiple research agents run simultaneously. A synthesis agent waits for all of them.
+Multiple research tasks run simultaneously. A synthesis task is blocked on all of them.
 
 ```text
 ResearcherA  --\
 ResearcherB  ---+--> Synthesizer
 ResearcherC  --/
+```
 
-Synthesizer: blockedBy: [ResearcherA, ResearcherB, ResearcherC]
+```javascript
+TaskCreate({ subject: "Research: source A" })   // id: 1
+TaskCreate({ subject: "Research: source B" })   // id: 2
+TaskCreate({ subject: "Research: source C" })   // id: 3
+TaskCreate({ subject: "Synthesize findings" })  // id: 4
+TaskUpdate({ taskId: "4", addBlockedBy: ["1", "2", "3"] })
 ```
 
 Use this when research tasks are independent but the final output requires integrating all findings. The parallel phase cuts elapsed time; the synthesis phase ensures coherence.
@@ -149,24 +169,36 @@ Each stage depends on the previous one.
 
 ```text
 Researcher --> Writer --> Reviewer --> Publisher
+```
 
-Writer:    blockedBy: [Researcher]
-Reviewer:  blockedBy: [Writer]
-Publisher: blockedBy: [Reviewer]
+```javascript
+TaskCreate({ subject: "Research" })    // id: 1
+TaskCreate({ subject: "Write draft" }) // id: 2
+TaskCreate({ subject: "Review" })      // id: 3
+TaskCreate({ subject: "Publish" })     // id: 4
+TaskUpdate({ taskId: "2", addBlockedBy: ["1"] })
+TaskUpdate({ taskId: "3", addBlockedBy: ["2"] })
+TaskUpdate({ taskId: "4", addBlockedBy: ["3"] })
 ```
 
 Use this for content production, code generation, or any workflow where each step requires the previous step's output as input. Each agent works on a finished artifact, not a work-in-progress.
 
 **Pattern 3: Structured debate.**
 
-Three agents take different positions on a question. A decision-maker reads all three and rules.
+Three agents take different positions on a question. A decision task is blocked on all three.
 
 ```text
 ProponentA  --\
-ProponentB  ---+--> DecisionMaker
+ProponentB   --+--> DecisionMaker
 SkepticC    --/
+```
 
-DecisionMaker: blockedBy: [ProponentA, ProponentB, SkepticC]
+```javascript
+TaskCreate({ subject: "Argue for approach X" })     // id: 1
+TaskCreate({ subject: "Argue for approach Y" })     // id: 2
+TaskCreate({ subject: "Argue against both" })       // id: 3
+TaskCreate({ subject: "Rule on approach" })         // id: 4
+TaskUpdate({ taskId: "4", addBlockedBy: ["1", "2", "3"] })
 ```
 
 Use this for architecture decisions, strategy questions, or any situation where you want multiple perspectives before committing. Assign explicit positions in each agent's profile. "Argue for approach X" produces better analysis than "consider approach X."
@@ -177,9 +209,16 @@ Work stops at defined checkpoints until a gate passes.
 
 ```text
 Planner --> [Human approval] --> Executor --> Reviewer
+```
 
-Executor: blockedBy: [Planner, HumanApproval]
-Reviewer: blockedBy: [Executor]
+```javascript
+TaskCreate({ subject: "Plan" })           // id: 1
+TaskCreate({ subject: "Human approval" }) // id: 2
+TaskCreate({ subject: "Execute" })        // id: 3
+TaskCreate({ subject: "Review" })         // id: 4
+TaskUpdate({ taskId: "2", addBlockedBy: ["1"] })
+TaskUpdate({ taskId: "3", addBlockedBy: ["2"] })
+TaskUpdate({ taskId: "4", addBlockedBy: ["3"] })
 ```
 
 Use this when the cost of a wrong decision is high. The plan is cheap to produce and cheap to reject. Execution is expensive. Put the gate before the expensive step.
@@ -258,10 +297,24 @@ Here is a complete content team. Four agents, one pipeline, built to spec.
 
 ```text
 Nova researches
-  --> Sage writes (blockedBy: Nova)
-    --> Rex reviews (blockedBy: Sage)
-      --> Emma delivers (blockedBy: Rex)
+  --> Sage writes (blocked on Nova's task)
+    --> Rex reviews (blocked on Sage's task)
+      --> Emma delivers (blocked on Rex's task)
 ```
+
+Emma sets up the task dependencies at the start of each run:
+
+```javascript
+TaskCreate({ subject: "Research: [topic]" })   // id: 1
+TaskCreate({ subject: "Write draft" })          // id: 2
+TaskCreate({ subject: "Review draft" })         // id: 3
+TaskCreate({ subject: "Deliver to user" })      // id: 4
+TaskUpdate({ taskId: "2", addBlockedBy: ["1"] })
+TaskUpdate({ taskId: "3", addBlockedBy: ["2"] })
+TaskUpdate({ taskId: "4", addBlockedBy: ["3"] })
+```
+
+Nova, Sage, and Rex claim tasks from the shared list when they become available. The system unlocks each task automatically when its blocker completes.
 
 **`CLAUDE.md` (excerpt):**
 
@@ -285,12 +338,12 @@ Sage delivers: a draft in `Team/drafts/[slug]-draft.md`.
 Rex delivers: a review report in `Team/reviews/[slug]-review.md`.
 ```
 
-**`agents/nova.md`:**
+**`.claude/agents/nova.md`:**
 
 ```yaml
 ---
-name: Nova
-role: Researcher
+name: nova
+description: Researches technical topics and delivers research briefs
 model: claude-sonnet-4-6
 effort: medium
 ---
@@ -306,15 +359,14 @@ For each research task:
 Save your output to memory/research-brief.md. Do not write anything else.
 ```
 
-**`agents/sage.md`:**
+**`.claude/agents/sage.md`:**
 
 ```yaml
 ---
-name: Sage
-role: Writer
+name: sage
+description: Writes articles based on Nova's research brief
 model: claude-sonnet-4-6
 effort: medium
-blockedBy: [Nova]
 ---
 
 You are Sage. You write articles based on Nova's research brief.
@@ -335,15 +387,14 @@ Write the article:
 Save your output to Team/drafts/[slug]-draft.md.
 ```
 
-**`agents/rex.md`:**
+**`.claude/agents/rex.md`:**
 
 ```yaml
 ---
-name: Rex
-role: Reviewer
-model: claude-haiku-4-5
+name: rex
+description: Reviews drafts against a checklist and returns PASS or FAIL
+model: claude-haiku-4-5-20251001
 effort: low
-blockedBy: [Sage]
 ---
 
 You are Rex. You review drafts against a checklist. You return PASS or FAIL.
@@ -363,15 +414,14 @@ Final decision: PASS if all items pass. FAIL if any item fails.
 Save your review to Team/reviews/[slug]-review.md.
 ```
 
-**`agents/emma.md`:**
+**`.claude/agents/emma.md`:**
 
 ```yaml
 ---
-name: Emma
-role: Team Lead
+name: emma
+description: Coordinates the content team and delivers final output to the user
 model: claude-sonnet-4-6
 effort: medium
-blockedBy: [Rex]
 ---
 
 You are Emma. You coordinate the content team and deliver final output to the user.
