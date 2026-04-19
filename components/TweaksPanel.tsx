@@ -101,7 +101,7 @@ export default function TweaksPanel() {
           className="tweaks-panel"
           role="dialog"
           aria-label="Display settings"
-          aria-modal="true"
+          aria-modal="false"
         >
           <div className="tweaks-panel__header">
             <span className="tweaks-panel__title">Display</span>
