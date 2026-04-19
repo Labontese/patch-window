@@ -112,3 +112,15 @@ export function getAllTags(): string[] {
   const all = getAllArticles().flatMap((a) => a.tags)
   return [...new Set(all)].sort()
 }
+
+export function getTagCounts(): Array<{ tag: string; count: number }> {
+  const counts = new Map<string, number>()
+  getAllArticles().forEach((a) => {
+    a.tags.forEach((tag) => {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    })
+  })
+  return Array.from(counts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+}
