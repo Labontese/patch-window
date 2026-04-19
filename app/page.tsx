@@ -7,7 +7,6 @@ import NowCard from '@/components/patchlog/NowCard'
 import TagCloud from '@/components/patchlog/TagCloud'
 import Subscribe from '@/components/patchlog/Subscribe'
 import TerminalFooter from '@/components/patchlog/TerminalFooter'
-import './patch-log.css'
 
 export const metadata: Metadata = {
   title: 'Patch Window',
