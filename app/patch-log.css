@@ -198,6 +198,7 @@
 .v2-log {
   width: 100%;
   margin-bottom: 2.5rem;
+  border-collapse: collapse;
 }
 
 .v2-log__caption {
@@ -209,6 +210,69 @@
   text-align: left;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--pw-border);
+}
+
+.v2-log__row {
+  border-bottom: 1px solid var(--pw-border-sub);
+}
+
+.v2-log__row:hover {
+  background: var(--pw-border-sub);
+}
+
+.v2-log__cell {
+  padding: 0.6rem 0.5rem;
+  vertical-align: middle;
+  font-size: 0.875rem;
+}
+
+.v2-log__cell--index {
+  color: var(--pw-muted);
+  font-size: 0.75rem;
+  width: 3rem;
+  white-space: nowrap;
+}
+
+.v2-log__cell--format {
+  width: 8rem;
+  white-space: nowrap;
+}
+
+.v2-log__cell--title {
+  /* flexible width */
+}
+
+.v2-log__cell--date {
+  color: var(--pw-muted);
+  white-space: nowrap;
+  font-size: 0.8125rem;
+}
+
+.v2-log__cell--time {
+  color: var(--pw-muted);
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.v2-log__link {
+  color: var(--pw-text);
+  text-decoration: none;
+}
+
+.v2-log__link:hover,
+.v2-log__link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--pw-amber);
+}
+
+/* Hide less-critical columns on small screens */
+@media (max-width: 40rem) {
+  .v2-log__cell--index,
+  .v2-log__cell--time {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------------------------ */
