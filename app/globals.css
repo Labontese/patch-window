@@ -791,6 +791,46 @@ code {
 }
 
 /* ------------------------------------------------------------------ */
+/* Easter egg flash                                                     */
+/* ------------------------------------------------------------------ */
+
+.easter-egg {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--color-green);
+  background: var(--color-bg);
+  border: 1px solid var(--color-green);
+  border-radius: 4px;
+  padding: 0.4em 1em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.easter-egg--visible {
+  opacity: 1;
+  animation: egg-fade 2s forwards;
+}
+
+@keyframes egg-fade {
+  0%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .easter-egg--visible {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Reading progress bar                                                 */
 /* ------------------------------------------------------------------ */
 

@@ -4,6 +4,7 @@ import { safeJsonLd } from '@/lib/jsonld'
 import ThemeToggle from '@/components/ThemeToggle'
 import TweaksPanel from '@/components/TweaksPanel'
 import ReadingProgress from '@/components/ReadingProgress'
+import EasterEgg from '@/components/EasterEgg'
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -110,6 +111,7 @@ export default function RootLayout({
         <ReadingProgress />
         <ThemeToggle />
         <TweaksPanel />
+        <EasterEgg />
         {children}
         <script
           defer
