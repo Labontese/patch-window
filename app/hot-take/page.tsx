@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { getArticlesByFormat } from '@/lib/articles'
-import SiteHeader from '@/components/SiteHeader'
-import SiteFooter from '@/components/SiteFooter'
+import InnerHeader from '@/components/InnerHeader'
+import InnerFooter from '@/components/InnerFooter'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
@@ -20,7 +20,7 @@ export default function HotTakeIndexPage() {
 
   return (
     <>
-      <SiteHeader />
+      <InnerHeader />
       <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
         <Breadcrumbs items={[{ label: 'Home', href: '/' }, { label: 'Hot Takes' }]} />
         <div className="page-header">
@@ -39,7 +39,7 @@ export default function HotTakeIndexPage() {
           <p style={{ color: 'var(--color-text-muted)' }}>No Hot Takes published yet.</p>
         )}
       </main>
-      <SiteFooter />
+      <InnerFooter />
     </>
   )
 }

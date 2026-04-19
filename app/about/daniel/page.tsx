@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import SiteHeader from '@/components/SiteHeader'
-import SiteFooter from '@/components/SiteFooter'
+import InnerHeader from '@/components/InnerHeader'
+import InnerFooter from '@/components/InnerFooter'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import { safeJsonLd } from '@/lib/jsonld'
 
@@ -29,7 +29,7 @@ const personJsonLd = {
 export default function DanielPage() {
   return (
     <>
-      <SiteHeader />
+      <InnerHeader />
       <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
         <Breadcrumbs
           items={[
@@ -91,7 +91,7 @@ export default function DanielPage() {
           </p>
         </div>
       </main>
-      <SiteFooter />
+      <InnerFooter />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(personJsonLd) }}

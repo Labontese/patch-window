@@ -5,8 +5,8 @@ import path from 'path'
 import matter from 'gray-matter'
 import { PATHWAYS } from '@/lib/types'
 import { getArticlesByPathway } from '@/lib/articles'
-import SiteHeader from '@/components/SiteHeader'
-import SiteFooter from '@/components/SiteFooter'
+import InnerHeader from '@/components/InnerHeader'
+import InnerFooter from '@/components/InnerFooter'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
@@ -59,7 +59,7 @@ export default async function PathwayPage({ params }: Props) {
 
   return (
     <>
-      <SiteHeader />
+      <InnerHeader />
       <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
         <Breadcrumbs
           items={[
@@ -88,7 +88,7 @@ export default async function PathwayPage({ params }: Props) {
           <p style={{ color: 'var(--color-text-muted)' }}>No articles in this pathway yet.</p>
         )}
       </main>
-      <SiteFooter />
+      <InnerFooter />
     </>
   )
 }

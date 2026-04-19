@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getArticleByFormatAndSlug, getArticlesByFormat } from '@/lib/articles'
-import SiteHeader from '@/components/SiteHeader'
-import SiteFooter from '@/components/SiteFooter'
+import InnerHeader from '@/components/InnerHeader'
+import InnerFooter from '@/components/InnerFooter'
 import ArticleHeader from '@/components/ArticleHeader'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import { safeJsonLd } from '@/lib/jsonld'
@@ -79,7 +79,7 @@ export default async function BriefPage({ params }: Props) {
 
   return (
     <>
-      <SiteHeader />
+      <InnerHeader />
       <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
         <Breadcrumbs
           items={[
@@ -97,7 +97,7 @@ export default async function BriefPage({ params }: Props) {
           </article>
         </div>
       </main>
-      <SiteFooter />
+      <InnerFooter />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}

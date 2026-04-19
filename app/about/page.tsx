@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import SiteHeader from '@/components/SiteHeader'
-import SiteFooter from '@/components/SiteFooter'
+import InnerHeader from '@/components/InnerHeader'
+import InnerFooter from '@/components/InnerFooter'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
 export const metadata: Metadata = {
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <>
-      <SiteHeader />
+      <InnerHeader />
       <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
         <Breadcrumbs items={[{ label: 'Home', href: '/' }, { label: 'About' }]} />
         <div className="content-col">
@@ -74,7 +74,7 @@ export default function AboutPage() {
           </p>
         </div>
       </main>
-      <SiteFooter />
+      <InnerFooter />
     </>
   )
 }
