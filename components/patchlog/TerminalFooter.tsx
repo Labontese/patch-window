@@ -7,7 +7,7 @@ export default function TerminalFooter() {
     <footer className="v2-footer" role="contentinfo">
       <span>
         <span aria-hidden="true">{'$ '}</span>
-        {`© ${year} Daniel Gustafsson — `}
+        {`© ${year} Daniel Gustafsson · `}
         <a href="/about">About</a>
         {' · '}
         <a href="/feed.xml">RSS</a>

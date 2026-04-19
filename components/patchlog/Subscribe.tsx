@@ -1,11 +1,11 @@
 export default function Subscribe() {
   return (
     <section className="v2-side__block" aria-labelledby="subscribe-heading">
-      <h2 id="subscribe-heading" className="v2-side__heading">
+      <h3 id="subscribe-heading" className="v2-side__heading">
         Subscribe
-      </h2>
+      </h3>
       <p style={{ margin: '0 0 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-        Follow via RSS — no email required, no tracking.
+        Follow via RSS. No email required, no tracking.
       </p>
       <a
         href="/feed.xml"
@@ -13,7 +13,7 @@ export default function Subscribe() {
         style={{ color: 'var(--color-amber)', fontSize: '0.875rem' }}
         aria-label="Subscribe via RSS feed"
       >
-        {'>'} feed.xml
+        <span aria-hidden="true">{'> '}</span>feed.xml
       </a>
     </section>
   )
