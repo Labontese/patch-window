@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadPrefs, savePrefs, applyPrefs } from '@/lib/preferences'
 import type { Prefs, AccentColor, Density, SerifToggle, EggToggle } from '@/lib/preferences'
 
@@ -8,6 +8,8 @@ export default function TweaksPanel() {
   const [open, setOpen] = useState(false)
   // null = SSR / not yet mounted
   const [prefs, setPrefs] = useState<Prefs | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Runs only on client after hydration — safe to read localStorage
@@ -16,6 +18,58 @@ export default function TweaksPanel() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPrefs(loaded)
   }, [])
+
+  // Move focus into panel when opened; restore to trigger when closed
+  useEffect(() => {
+    if (open && panelRef.current) {
+      const firstFocusable = panelRef.current.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      firstFocusable?.focus()
+    } else if (!open && triggerRef.current) {
+      triggerRef.current.focus()
+    }
+  }, [open])
+
+  // Focus trap + Escape handler
+  useEffect(() => {
+    if (!open) return
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        return
+      }
+
+      if (e.key !== 'Tab' || !panelRef.current) return
+
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('disabled'))
+
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open])
 
   if (!prefs) return null
 
@@ -29,6 +83,7 @@ export default function TweaksPanel() {
   return (
     <>
       <button
+        ref={triggerRef}
         className="tweaks-trigger"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -41,11 +96,12 @@ export default function TweaksPanel() {
 
       {open && (
         <div
+          ref={panelRef}
           id="tweaks-panel"
           className="tweaks-panel"
           role="dialog"
           aria-label="Display settings"
-          aria-modal="false"
+          aria-modal="true"
         >
           <div className="tweaks-panel__header">
             <span className="tweaks-panel__title">Display</span>
