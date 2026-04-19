@@ -7,7 +7,7 @@ export default function InnerHeader() {
 
   return (
     <header role="banner">
-      <div className="v2-head site-wrapper">
+      <div className="v2 v2-head">
         <p className="v2-head__prompt" aria-hidden="true">
           {'daniel@patchwindow:~$ '}
           <span className="v2-head__cursor" aria-hidden="true" />
