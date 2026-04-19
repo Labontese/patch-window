@@ -6,7 +6,7 @@ interface Props {
 }
 
 export default function FeaturedPatch({ article }: Props) {
-  const href = `/articles/${article.format}/${article.slug}`
+  const href = `/${article.format}/${article.slug}`
 
   return (
     <article className="v2-patch v2-patch--featured" aria-labelledby="featured-patch-title">

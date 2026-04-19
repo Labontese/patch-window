@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function LogRow({ article, index }: Props) {
-  const href = `/articles/${article.format}/${article.slug}`
+  const href = `/${article.format}/${article.slug}`
   const paddedIndex = String(index + 1).padStart(3, '0')
 
   return (
