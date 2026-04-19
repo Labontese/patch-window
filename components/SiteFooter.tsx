@@ -7,7 +7,7 @@ export default function SiteFooter() {
     <footer className="site-footer">
       <div className="site-wrapper">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>© {year} Daniel Gustafsson / Patch Window</span>
+          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text-muted)' }}>© {year} Daniel Gustafsson / Patch Window</span>
           <a href='https://ko-fi.com/M4M41XYZRX' target='_blank' rel='noopener noreferrer' data-umami-event="kofi-click">
             <img height='36' width={143} style={{ border: '0px', height: '36px' }} src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' alt='Buy Me a Coffee at ko-fi.com' />
           </a>

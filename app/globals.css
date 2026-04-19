@@ -390,7 +390,7 @@ code {
 
 /* Sidebar — metadata column. Must come after article in DOM (SC 1.3.2) */
 .article-sidebar {
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   color: var(--color-text-muted);
 }
@@ -433,7 +433,7 @@ code {
 }
 
 .nav-link {
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   color: var(--color-text-muted);
   min-height: 2.75rem; /* 44px tap target */
@@ -462,7 +462,7 @@ code {
   border-top: 1px solid var(--color-border);
   padding: 2rem 0;
   margin-top: 4rem;
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
@@ -484,12 +484,13 @@ code {
 }
 
 .article-header__title {
+  font-family: var(--font-mono);
   margin-top: 0.25rem;
   margin-bottom: 0.75rem;
 }
 
 .article-meta {
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
   color: var(--color-text-muted);
   display: flex;
@@ -597,7 +598,7 @@ code {
 /* ------------------------------------------------------------------ */
 
 .breadcrumbs {
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
   color: var(--color-text-muted);
   display: flex;
@@ -682,6 +683,7 @@ code {
 }
 
 .page-header__title {
+  font-family: var(--font-mono);
   font-size: clamp(1.5rem, 4vw, 2.25rem);
   margin-bottom: 0.5rem;
 }
