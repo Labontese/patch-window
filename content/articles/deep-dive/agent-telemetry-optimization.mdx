@@ -45,6 +45,8 @@ Three numbers matter.
 
 Output tokens cost 5x more per token than input. A single agent running extended thinking at high effort on simple tasks can cost more per call than an entire unoptimized system prompt costs over a week. Measure output first.
 
+![Grafana dashboard showing per-agent token usage, cost, and 99.9% cache hit rate across the Team Daniel agent stack](/images/agent-telemetry-grafana.png)
+
 ## The optimization process
 
 The research agent investigated cache mechanics and defined which metrics to act on. The AI specialist audited all profiles, produced a baseline with line counts and redundancy notes, then drafted optimized versions. The governance agent reviewed before anything deployed.
@@ -56,6 +58,19 @@ The AI specialist extracted output format templates and report structures into s
 The revision kept a stricter boundary. Only identity, purpose, and method blocks were trimmed. Checklists belonging in runbooks, duplicate rule descriptions, and static reference lists were removed or externalized. Output format stayed in the profile.
 
 Result: 10-48% reduction per profile. The DevOps agent was the extreme case -- three full report templates embedded in the system prompt, duplicate rule lists, a self-check section restating the success criteria. About 130 lines of runbook content that had drifted into the profile over time.
+
+| Agent | Role | Before (lines) | After (lines) | Reduction |
+|---|---|---|---|---|
+| DevOps agent | Infrastructure, containers, deploy | 310 | ~176 | ~43% |
+| Accessibility agent | WCAG audit, a11y review | 164 | ~85 | ~48% |
+| Governance agent | HR, compliance, agent review | 114 | 77 | ~32% |
+| Legal agent | Contracts, regulatory | 99 | ~87 | ~12% |
+| Frontend agent | React, UI components | 95 | ~84 | ~12% |
+| Business agent | Marketing, partnerships | 102 | ~90 | ~12% |
+| Writing agent | Documentation, copy | 109 | ~97 | ~11% |
+| AI specialist | Prompt design, model selection | 103 | ~91 | ~12% |
+
+Anna (research) and Emelie (team lead) were left untouched -- lowest structural redundancy, highest governance risk from changes.
 
 ## What telemetry still needs to verify
 
