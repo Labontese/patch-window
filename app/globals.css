@@ -48,7 +48,7 @@
   /* Fonts */
   --font-serif: var(--font-playfair), 'Georgia', serif;
   --font-body: var(--font-source-serif), 'Georgia', serif;
-  --font-mono: 'Courier New', 'Lucida Console', monospace;
+  --font-mono: var(--font-jetbrains-mono), 'Courier New', 'Lucida Console', monospace;
   --font-ui: system-ui, -apple-system, sans-serif;
 }
 

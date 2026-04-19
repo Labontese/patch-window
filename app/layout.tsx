@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Playfair_Display, Source_Serif_4 } from 'next/font/google'
+import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { safeJsonLd } from '@/lib/jsonld'
 import './globals.css'
 
@@ -15,6 +15,13 @@ const sourceSerif = Source_Serif_4({
   display: 'swap',
   variable: '--font-source-serif',
   weight: ['400', '600'],
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-jetbrains-mono',
+  weight: ['400', '500', '700'],
 })
 
 const SITE_URL = 'https://patchwindow.serverdigital.net'
@@ -85,7 +92,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${playfair.variable} ${sourceSerif.variable}`}
+      className={`${playfair.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
       <body>
         <a href="#main-content" className="skip-link">
