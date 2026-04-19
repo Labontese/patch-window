@@ -353,7 +353,7 @@ code {
 /* ------------------------------------------------------------------ */
 
 .site-wrapper {
-  max-width: 80rem; /* 1280px */
+  max-width: 90rem;
   margin: 0 auto;
   padding: 0 1.25rem;
 }
