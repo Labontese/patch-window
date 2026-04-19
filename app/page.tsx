@@ -51,11 +51,11 @@ export default function HomePage() {
               <caption className="v2-log__caption">All patches</caption>
               <thead className="visually-hidden">
                 <tr>
-                  <th scope="col">#</th>
+                  <th scope="col" className="v2-log__th--hidden-mobile">#</th>
                   <th scope="col">Format</th>
                   <th scope="col">Title</th>
                   <th scope="col">Published</th>
-                  <th scope="col">Read time</th>
+                  <th scope="col" className="v2-log__th--hidden-mobile">Read time</th>
                 </tr>
               </thead>
               <tbody>
