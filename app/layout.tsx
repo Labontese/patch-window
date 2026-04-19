@@ -3,6 +3,7 @@ import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from 'next/font/goog
 import { safeJsonLd } from '@/lib/jsonld'
 import ThemeToggle from '@/components/ThemeToggle'
 import TweaksPanel from '@/components/TweaksPanel'
+import ReadingProgress from '@/components/ReadingProgress'
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -106,6 +107,7 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
+        <ReadingProgress />
         <ThemeToggle />
         <TweaksPanel />
         {children}
