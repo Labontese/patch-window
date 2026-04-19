@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { safeJsonLd } from '@/lib/jsonld'
+import ThemeToggle from '@/components/ThemeToggle'
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -104,6 +105,7 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
+        <ThemeToggle />
         {children}
         <script
           defer
