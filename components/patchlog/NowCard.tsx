@@ -3,9 +3,9 @@ import { NOW_NOTE } from '@/lib/now'
 export default function NowCard() {
   return (
     <section className="v2-side__block" aria-labelledby="now-card-heading">
-      <h2 id="now-card-heading" className="v2-side__heading">
+      <h3 id="now-card-heading" className="v2-side__heading">
         /now
-      </h2>
+      </h3>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         <li style={{ marginBottom: '0.4rem' }}>{NOW_NOTE.line1}</li>
         <li style={{ marginBottom: '0.4rem' }}>{NOW_NOTE.line2}</li>

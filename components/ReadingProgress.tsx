@@ -13,7 +13,9 @@ export default function ReadingProgress() {
       const scrollTop = window.scrollY
       const docHeight = document.documentElement.scrollHeight - window.innerHeight
       const progress = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0
+      const rounded = Math.round(progress * 100)
       bar!.style.setProperty('--pw-progress', `${(progress * 100).toFixed(2)}%`)
+      bar!.setAttribute('aria-valuenow', String(rounded))
     }
 
     update()

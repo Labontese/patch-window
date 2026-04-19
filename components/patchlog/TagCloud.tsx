@@ -12,9 +12,9 @@ export default function TagCloud({ tags }: Props) {
 
   return (
     <section className="v2-side__block" aria-labelledby="tag-cloud-heading">
-      <h2 id="tag-cloud-heading" className="v2-side__heading">
+      <h3 id="tag-cloud-heading" className="v2-side__heading">
         Tags
-      </h2>
+      </h3>
       <ul
         style={{
           listStyle: 'none',
