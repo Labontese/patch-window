@@ -6,12 +6,15 @@ import type { Prefs, AccentColor, Density, SerifToggle, EggToggle } from '@/lib/
 
 export default function TweaksPanel() {
   const [open, setOpen] = useState(false)
+  // null = SSR / not yet mounted
   const [prefs, setPrefs] = useState<Prefs | null>(null)
 
   useEffect(() => {
+    // Runs only on client after hydration — safe to read localStorage
     const loaded = loadPrefs()
-    setPrefs(loaded)
     applyPrefs(loaded)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPrefs(loaded)
   }, [])
 
   if (!prefs) return null

@@ -4,17 +4,15 @@ import { useEffect, useState } from 'react'
 
 type Theme = 'dark' | 'light'
 
-function getStoredTheme(): Theme | null {
+function resolveInitialTheme(): Theme {
+  // Only runs on client — safe to access localStorage and matchMedia
+  if (typeof window === 'undefined') return 'dark'
   try {
     const prefs = JSON.parse(localStorage.getItem('pw-prefs') || '{}')
-    if (prefs.theme === 'light' || prefs.theme === 'dark') return prefs.theme
+    if (prefs.theme === 'light' || prefs.theme === 'dark') return prefs.theme as Theme
   } catch {
     // ignore
   }
-  return null
-}
-
-function getSystemTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
@@ -30,34 +28,34 @@ function applyTheme(theme: Theme) {
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('dark')
-  const [mounted, setMounted] = useState(false)
+  // null = not yet mounted (SSR), string = mounted on client
+  const [theme, setTheme] = useState<Theme | null>(null)
 
   useEffect(() => {
-    const stored = getStoredTheme()
-    const resolved = stored ?? getSystemTheme()
-    setTheme(resolved)
-    setMounted(true)
+    // Read from localStorage after hydration — lazy initializer can't access window safely
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTheme(resolveInitialTheme())
   }, [])
 
-  if (!mounted) {
-    // Render placeholder to avoid layout shift before mount
+  function toggle() {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark'
+    applyTheme(next)
+    setTheme(next)
+  }
+
+  // Hidden placeholder during SSR / before hydration to avoid layout shift
+  if (theme === null) {
     return (
       <button
         className="theme-toggle"
         aria-label="Toggle theme"
         aria-pressed={false}
         style={{ visibility: 'hidden' }}
+        disabled
       >
         <SunIcon />
       </button>
     )
-  }
-
-  function toggle() {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    applyTheme(next)
-    setTheme(next)
   }
 
   return (

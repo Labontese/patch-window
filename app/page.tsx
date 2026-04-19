@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
-import { getAllArticles } from '@/lib/articles'
+import { getAllArticles, getTagCounts } from '@/lib/articles'
+import TerminalHeader from '@/components/patchlog/TerminalHeader'
+import FeaturedPatch from '@/components/patchlog/FeaturedPatch'
+import LogRow from '@/components/patchlog/LogRow'
+import NowCard from '@/components/patchlog/NowCard'
+import TagCloud from '@/components/patchlog/TagCloud'
+import Subscribe from '@/components/patchlog/Subscribe'
+import TerminalFooter from '@/components/patchlog/TerminalFooter'
 import './patch-log.css'
-import type { Format } from '@/lib/types'
-import SiteHeader from '@/components/SiteHeader'
-import SiteFooter from '@/components/SiteFooter'
-import ArticleCard from '@/components/ArticleCard'
 
 export const metadata: Metadata = {
   title: 'Patch Window',
@@ -18,41 +21,63 @@ export const metadata: Metadata = {
   },
 }
 
-const FORMAT_SECTIONS: Array<{ format: Format; heading: string; limit: number }> = [
-  { format: 'hot-take', heading: 'Hot Takes', limit: 5 },
-  { format: 'deep-dive', heading: 'Deep Dives', limit: 3 },
-  { format: 'brief', heading: 'Briefs', limit: 5 },
-]
-
 export default function HomePage() {
   const allArticles = getAllArticles()
+  const tagCounts = getTagCounts()
+
+  // Featured: latest deep-dive, fallback to latest article
+  const latestDeepDive =
+    allArticles.find((a) => a.format === 'deep-dive') ?? allArticles[0]
+
+  // Log: all articles except the featured one
+  const logArticles = latestDeepDive
+    ? allArticles.filter((a) => a.slug !== latestDeepDive.slug)
+    : allArticles
 
   return (
-    <>
-      <SiteHeader />
-      <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
-        {/* Visually hidden h1 — SiteHeader carries the wordmark visually; screen
-            readers and search engines need a semantic page heading. */}
-        <h1 className="visually-hidden">Patch Window</h1>
-        {FORMAT_SECTIONS.map(({ format, heading, limit }) => {
-          const articles = allArticles.filter((a) => a.format === format).slice(0, limit)
-          if (articles.length === 0) return null
-          return (
-            <section key={format} className="home-section" aria-labelledby={`section-${format}`}>
-              <h2 id={`section-${format}`} className="home-section__heading">
-                {heading}
-              </h2>
-              {articles.map((article) => (
-                <ArticleCard key={article.slug} article={article} />
-              ))}
-            </section>
-          )
-        })}
-        {allArticles.length === 0 && (
-          <p style={{ color: 'var(--color-text-muted)' }}>No articles published yet.</p>
-        )}
-      </main>
-      <SiteFooter />
-    </>
+    <main className="v2" id="main-content">
+      {/* Visually-hidden h1 duplicate is NOT needed here —
+          TerminalHeader renders the h1 itself */}
+
+      <TerminalHeader articleCount={allArticles.length} />
+
+      {latestDeepDive && <FeaturedPatch article={latestDeepDive} />}
+
+      <div className="v2-columns">
+        {/* Main column: log table */}
+        <div>
+          {logArticles.length > 0 ? (
+            <table className="v2-log" aria-label="Patch log">
+              <caption className="v2-log__caption">All patches</caption>
+              <thead className="visually-hidden">
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Format</th>
+                  <th scope="col">Title</th>
+                  <th scope="col">Published</th>
+                  <th scope="col">Read time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logArticles.map((article, i) => (
+                  <LogRow key={article.slug} article={article} index={i} />
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={{ color: 'var(--color-text-muted)' }}>No patches published yet.</p>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <aside className="v2-side" aria-label="Sidebar">
+          <NowCard />
+          <TagCloud tags={tagCounts} />
+          <Subscribe />
+        </aside>
+      </div>
+
+      <TerminalFooter />
+    </main>
   )
 }
