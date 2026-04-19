@@ -89,11 +89,17 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // FOUC-prevention: runs synchronously before hydration to set data-theme
+  const themeScript = `(function(){try{var p=JSON.parse(localStorage.getItem('pw-prefs')||'{}');var t=p.theme;if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}else if(window.matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.setAttribute('data-theme','light');}}catch(e){}})();`
+
   return (
     <html
       lang="en"
       className={`${playfair.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <a href="#main-content" className="skip-link">
           Skip to main content

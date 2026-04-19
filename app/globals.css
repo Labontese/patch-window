@@ -56,8 +56,30 @@
 /* Color tokens — light mode                                           */
 /* ------------------------------------------------------------------ */
 
+:root[data-theme="light"] {
+  --color-bg: #f5f0e8;
+  --color-text: #111111;
+  --color-text-muted: #595959;
+
+  --color-amber: #8b6800;
+  --color-amber-border: #8b6800;
+  --color-green: #2d6a4f;
+
+  --tag-hot-take-bg: #d4a017;
+  --tag-hot-take-text: #111111;
+  --tag-deep-dive-bg: transparent;
+  --tag-deep-dive-text: #2d6a4f;
+  --tag-brief-text: #595959;
+
+  --color-border: #d8d0c0;
+  --color-border-subtle: #e8e2d8;
+
+  --color-focus: #8b6800;
+}
+
+/* Fallback: honour OS preference when no explicit data-theme is set */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --color-bg: #f5f0e8;
     --color-text: #111111;
     --color-text-muted: #595959;
@@ -708,19 +730,26 @@ code {
 
 /* ------------------------------------------------------------------ */
 /* Shiki dark/light theme switching                                    */
+/* rehype-pretty-code emits --shiki-dark/--shiki-light inline vars.   */
+/* Default (dark) uses dark vars; [data-theme="light"] overrides.     */
 /* ------------------------------------------------------------------ */
 
-@media (prefers-color-scheme: dark) {
-  .shiki,
-  .shiki span {
-    color: var(--shiki-dark) !important;
-    background-color: var(--shiki-dark-bg) !important;
-  }
+.shiki,
+.shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
 }
 
+:root[data-theme="light"] .shiki,
+:root[data-theme="light"] .shiki span {
+  color: var(--shiki-light) !important;
+  background-color: var(--shiki-light-bg) !important;
+}
+
+/* Fallback: honour OS preference when no explicit data-theme is set */
 @media (prefers-color-scheme: light) {
-  .shiki,
-  .shiki span {
+  :root:not([data-theme]) .shiki,
+  :root:not([data-theme]) .shiki span {
     color: var(--shiki-light) !important;
     background-color: var(--shiki-light-bg) !important;
   }
