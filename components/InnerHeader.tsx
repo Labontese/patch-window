@@ -1,47 +1,34 @@
-import Link from 'next/link'
+import { SITE_STATS, getSiteUptimeDays } from '@/lib/site-config'
+import { getAllArticles } from '@/lib/articles'
 
-/**
- * InnerHeader — V2-stilad header för innersidor.
- *
- * Visuellt baserad på TerminalHeader men utan prompt-rad och
- * build-metadata (homepagestspecifika element). Logotypen pekar
- * tillbaka till startsidan. Nav-länkarna behåller aria-label,
- * data-umami-event-attribut och nav aria-label från SiteHeader.
- */
 export default function InnerHeader() {
-  return (
-    <header className="v2-inner-head" role="banner">
-      <Link
-        href="/"
-        className="v2-inner-head__logo"
-        aria-label="Patch Window, go to homepage"
-      >
-        <span aria-hidden="true" className="v2-inner-head__prompt-prefix">{'$_ '}</span>
-        <span className="v2-inner-head__title">Patch Window</span>
-      </Link>
+  const uptime = getSiteUptimeDays()
+  const articleCount = getAllArticles().length
 
-      <nav aria-label="Main navigation">
+  return (
+    <header className="v2-head" role="banner">
+      <p className="v2-head__prompt" aria-hidden="true">
+        {'daniel@patchwindow:~$ '}
+        <span className="v2-head__cursor" aria-hidden="true" />
+      </p>
+
+      <p className="v2-head__title">
+        <a href="/" aria-label="Patch Window, go to homepage" style={{ color: 'inherit', textDecoration: 'none' }}>
+          Patch Window
+        </a>
+      </p>
+
+      <p className="v2-head__meta">
+        {SITE_STATS.currentPatch} &nbsp;·&nbsp; {articleCount} patches &nbsp;·&nbsp; uptime {uptime}d
+      </p>
+
+      <nav aria-label="Site navigation">
         <ul className="v2-head__nav">
-          <li>
-            <Link href="/deep-dive" data-umami-event="nav-click" data-umami-event-item="deep-dives">
-              Deep Dives
-            </Link>
-          </li>
-          <li>
-            <Link href="/hot-take" data-umami-event="nav-click" data-umami-event-item="hot-takes">
-              Hot Takes
-            </Link>
-          </li>
-          <li>
-            <Link href="/brief" data-umami-event="nav-click" data-umami-event-item="briefs">
-              Briefs
-            </Link>
-          </li>
-          <li>
-            <Link href="/about" data-umami-event="nav-click" data-umami-event-item="about">
-              About
-            </Link>
-          </li>
+          <li><a href="/deep-dive" data-umami-event="nav-click" data-umami-event-item="deep-dives">Deep Dives</a></li>
+          <li><a href="/hot-take" data-umami-event="nav-click" data-umami-event-item="hot-takes">Hot Takes</a></li>
+          <li><a href="/brief" data-umami-event="nav-click" data-umami-event-item="briefs">Briefs</a></li>
+          <li><a href="/feed.xml" aria-label="RSS feed">RSS</a></li>
+          <li><a href="/about" data-umami-event="nav-click" data-umami-event-item="about">About</a></li>
         </ul>
       </nav>
     </header>
