@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getAllArticles } from '@/lib/articles'
+import './patch-log.css'
 import type { Format } from '@/lib/types'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
