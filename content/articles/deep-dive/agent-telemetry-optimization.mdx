@@ -1,0 +1,72 @@
+---
+title: "We built a telemetry stack to measure our AI agents, then used it to cut prompt costs"
+format: deep-dive
+slug: agent-telemetry-optimization
+pathway: aiops-observability
+tags:
+  - ai
+  - claude
+  - prometheus
+  - grafana
+  - prompt-engineering
+  - cost-optimization
+  - agent-teams
+publishedAt: 2026-04-19T10:00:00+02:00
+excerpt: "A Python parser, Prometheus, and Grafana running locally gives per-agent cache hit rates and cost-per-session data. Here is what we did with it."
+draft: false
+lang: en
+---
+
+The DevOps agent went from 310 lines to 176. The accessibility agent from 164 to 85. Eight agent profiles trimmed in a single sprint, with numbers to verify the work rather than guessing.
+
+That is what prompt optimization looks like when you have telemetry. Without it, you are adjusting text and hoping.
+
+I run a named AI agent team -- specialized agents for DevOps, research, accessibility, AI work, and governance, each with their own profile file. The profiles are system prompts. They accumulate weight over time. Telemetry is how you find out where the waste is.
+
+## The telemetry stack
+
+Claude Code writes JSONL session files to `~/.claude/projects/`. Every session logs token usage per message: input, output, cache write, cache read, and the model. The data is already there.
+
+`claude_session_parser.py` scans `~/.claude/projects/` recursively. Root-level sessions are attributed to the primary user. Files under `subagents/` are attributed by agent name, pulled from the `.meta.json` sidecar's `description` field -- first word of the description becomes the label. `"Wilma removes stale containers"` becomes agent `Wilma`.
+
+`metrics_exporter.py` aggregates by agent and exposes Prometheus Gauges on port 8000, re-scanning every 60 seconds. Grafana runs alongside Prometheus in Docker, auto-provisioned on first start.
+
+The stack is local by design. The parser reads only `usage` metadata, never message content. No data leaves the machine.
+
+## What the metrics tell you
+
+Three numbers matter.
+
+**Cache hit %** is the strongest structural signal. Below 40% means the agent is paying full price for most of its context on every call -- almost always a misplaced cache breakpoint or stable and dynamic content mixed in the same prompt prefix.
+
+**Input/output ratio** shows where the cost actually lives. Normal range is roughly 3:1 to 6:1. Under 2:1 means unusually long responses or near-zero context. Over 10:1 means unnecessary context: oversized system prompt, full tool schemas loaded on every call, or accumulating conversation history.
+
+**Cost per session normalized against session count** separates an expensive workflow from a frequently used agent. Same cost, 50x more sessions -- that is an efficient agent.
+
+Output tokens cost 5x more per token than input. A single agent running extended thinking at high effort on simple tasks can cost more per call than an entire unoptimized system prompt costs over a week. Measure output first.
+
+## The optimization process
+
+The research agent investigated cache mechanics and defined which metrics to act on. The AI specialist audited all profiles, produced a baseline with line counts and redundancy notes, then drafted optimized versions. The governance agent reviewed before anything deployed.
+
+The first round failed.
+
+The AI specialist extracted output format templates and report structures into separate resource files, referenced by a single line in the profile. On paper this saves tokens. The governance agent rejected it: output format and communication style are governance, not storage. An agent whose output behavior lives in an external file breaks silently if that file changes or is deleted. The profile controls behavior. Resource files hold reference data the agent reads on demand. Those are different categories.
+
+The revision kept a stricter boundary. Only identity, purpose, and method blocks were trimmed. Checklists belonging in runbooks, duplicate rule descriptions, and static reference lists were removed or externalized. Output format stayed in the profile.
+
+Result: 10-48% reduction per profile. The DevOps agent was the extreme case -- three full report templates embedded in the system prompt, duplicate rule lists, a self-check section restating the success criteria. About 130 lines of runbook content that had drifted into the profile over time.
+
+## What telemetry still needs to verify
+
+The optimization ran on structure, not on live measurements. We have line counts before and after. What we do not have yet is enough post-optimization sessions to confirm whether the structural changes improved cache hit rates.
+
+That is the correct order. Telemetry verifies hypotheses, it does not generate them. You cannot read a cache hit rate and deduce which section of the system prompt is the problem -- you need the structural analysis first.
+
+Three open gaps: cache write vs. read ratio per agent (showing whether caching amortizes across calls), input/output ratio at agent granularity (the data exists in the JSONL files, needs a derived gauge), and model escalation frequency (how often a Sonnet agent runs on Opus for a specific task -- not tracked, but it matters for cost modeling).
+
+The stack does not know what work was done, only how many tokens were used. Correlating cost with task complexity requires task metadata the JSONL files do not contain. That is the next layer.
+
+---
+
+*The telemetry project is at [github.com/Labontese/claude-code-telemetry](https://github.com/Labontese/claude-code-telemetry).*
