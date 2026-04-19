@@ -1,0 +1,355 @@
+/* ------------------------------------------------------------------ */
+/* Patch Log V2 — scoped styles                                        */
+/* All selectors prefixed with .v2 to avoid leaking into other pages. */
+/* ------------------------------------------------------------------ */
+
+/* Token aliases — map existing --color-* to --pw-* shorthand */
+.v2 {
+  --pw-bg:           var(--color-bg);
+  --pw-text:         var(--color-text);
+  --pw-muted:        var(--color-text-muted);
+  --pw-amber:        var(--color-amber);
+  --pw-green:        var(--color-green);
+  --pw-border:       var(--color-border);
+  --pw-border-sub:   var(--color-border-subtle);
+
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------ */
+/* Layout shell                                                         */
+/* ------------------------------------------------------------------ */
+
+.v2 {
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: 0 1.25rem 4rem;
+}
+
+@media (min-width: 48rem) {
+  .v2 {
+    padding: 0 2rem 4rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Terminal header                                                      */
+/* ------------------------------------------------------------------ */
+
+.v2-head {
+  border-bottom: 1px solid var(--pw-border);
+  padding: 1.5rem 0 1rem;
+  margin-bottom: 2rem;
+}
+
+.v2-head__prompt {
+  color: var(--pw-green);
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.v2-head__title {
+  font-family: var(--font-mono);
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  font-weight: 700;
+  color: var(--pw-text);
+  margin: 0 0 0.5rem;
+  line-height: 1.15;
+}
+
+.v2-head__meta {
+  font-size: 0.8125rem;
+  color: var(--pw-muted);
+  margin-bottom: 0.75rem;
+}
+
+.v2-head__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.v2-head__nav a {
+  color: var(--pw-muted);
+  text-decoration: none;
+}
+
+.v2-head__nav a:hover,
+.v2-head__nav a:focus-visible {
+  color: var(--pw-amber);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Blink cursor — CSS only, respects prefers-reduced-motion */
+.v2-head__cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  background: var(--pw-amber);
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-head__cursor {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Featured patch                                                       */
+/* ------------------------------------------------------------------ */
+
+.v2-patch {
+  border: 1px solid var(--pw-border);
+  border-radius: 4px;
+  padding: 1.5rem;
+  margin-bottom: 2.5rem;
+  position: relative;
+}
+
+.v2-patch--featured {
+  border-color: var(--pw-amber);
+}
+
+.v2-patch__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pw-amber);
+  margin-bottom: 0.5rem;
+}
+
+.v2-patch__title {
+  font-family: var(--font-mono);
+  font-size: clamp(1.125rem, 2.5vw, 1.5rem);
+  font-weight: 700;
+  color: var(--pw-text);
+  margin: 0 0 0.5rem;
+  line-height: 1.25;
+}
+
+.v2-patch__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.v2-patch__title a:hover,
+.v2-patch__title a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Excerpt must use body font — mono on long prose is an a11y risk */
+.v2-patch__excerpt {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  color: var(--pw-muted);
+  margin: 0.5rem 0 1rem;
+  max-width: 70ch;
+}
+
+.v2-patch__meta {
+  font-size: 0.8125rem;
+  color: var(--pw-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Decorative diff box — visually suggests a patch file */
+.v2-patch__diffbox {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--pw-muted);
+  border-left: 2px solid var(--pw-border);
+  padding-left: 0.75rem;
+  margin-top: 1rem;
+  user-select: none;
+}
+
+.v2-patch__diffbox-add {
+  color: var(--pw-green);
+}
+
+.v2-patch__diffbox-del {
+  color: #e05c7a;
+}
+
+/* ------------------------------------------------------------------ */
+/* Log table                                                            */
+/* ------------------------------------------------------------------ */
+
+.v2-log {
+  width: 100%;
+  margin-bottom: 2.5rem;
+  border-collapse: collapse;
+}
+
+.v2-log__caption {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pw-muted);
+  text-align: left;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--pw-border);
+}
+
+.v2-log__row {
+  border-bottom: 1px solid var(--pw-border-sub);
+}
+
+.v2-log__row:hover {
+  background: var(--pw-border-sub);
+}
+
+.v2-log__cell {
+  padding: 0.6rem 0.5rem;
+  vertical-align: middle;
+  font-size: 0.875rem;
+}
+
+.v2-log__cell--index {
+  color: var(--pw-muted);
+  font-size: 0.75rem;
+  width: 3rem;
+  white-space: nowrap;
+}
+
+.v2-log__cell--format {
+  width: 8rem;
+  white-space: nowrap;
+}
+
+.v2-log__cell--title {
+  /* flexible width */
+}
+
+.v2-log__cell--date {
+  color: var(--pw-muted);
+  white-space: nowrap;
+  font-size: 0.8125rem;
+}
+
+.v2-log__cell--time {
+  color: var(--pw-muted);
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.v2-log__link {
+  color: var(--pw-text);
+  text-decoration: none;
+}
+
+.v2-log__link:hover,
+.v2-log__link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--pw-amber);
+}
+
+/* Hide less-critical columns on small screens.
+   Both <td> and corresponding <th> are hidden so AT table model
+   sees a consistent column count (fixes SC 1.3.1 mismatch). */
+@media (max-width: 40rem) {
+  .v2-log__cell--index,
+  .v2-log__cell--time,
+  .v2-log__th--hidden-mobile {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Two-column layout: log + sidebar                                    */
+/* ------------------------------------------------------------------ */
+
+.v2-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .v2-columns {
+    grid-template-columns: 1fr 20rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Sidebar                                                              */
+/* ------------------------------------------------------------------ */
+
+.v2-side {
+  font-size: 0.875rem;
+}
+
+@media (min-width: 64rem) {
+  .v2-side {
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+.v2-side__block {
+  border: 1px solid var(--pw-border);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.v2-side__heading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pw-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Terminal footer                                                      */
+/* ------------------------------------------------------------------ */
+
+.v2-footer {
+  border-top: 1px solid var(--pw-border);
+  padding-top: 1.5rem;
+  margin-top: 2rem;
+  font-size: 0.8125rem;
+  color: var(--pw-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.v2-footer a {
+  color: var(--pw-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.v2-footer a:hover,
+.v2-footer a:focus-visible {
+  color: var(--pw-text);
+}

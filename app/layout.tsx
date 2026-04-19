@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
-import { Playfair_Display, Source_Serif_4 } from 'next/font/google'
+import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { safeJsonLd } from '@/lib/jsonld'
+import ThemeToggle from '@/components/ThemeToggle'
+import TweaksPanel from '@/components/TweaksPanel'
+import ReadingProgress from '@/components/ReadingProgress'
+import EasterEgg from '@/components/EasterEgg'
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -15,6 +19,13 @@ const sourceSerif = Source_Serif_4({
   display: 'swap',
   variable: '--font-source-serif',
   weight: ['400', '600'],
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-jetbrains-mono',
+  weight: ['400', '500', '700'],
 })
 
 const SITE_URL = 'https://patchwindow.serverdigital.net'
@@ -82,15 +93,25 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // FOUC-prevention: runs synchronously before hydration to set data-theme
+  const themeScript = `(function(){try{var p=JSON.parse(localStorage.getItem('pw-prefs')||'{}');var t=p.theme;if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}else if(window.matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.setAttribute('data-theme','light');}}catch(e){}})();`
+
   return (
     <html
       lang="en"
-      className={`${playfair.variable} ${sourceSerif.variable}`}
+      className={`${playfair.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
+        <ReadingProgress />
+        <ThemeToggle />
+        <TweaksPanel />
+        <EasterEgg />
         {children}
         <script
           defer
