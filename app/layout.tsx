@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { safeJsonLd } from '@/lib/jsonld'
 import ThemeToggle from '@/components/ThemeToggle'
+import TweaksPanel from '@/components/TweaksPanel'
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -106,6 +107,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <ThemeToggle />
+        <TweaksPanel />
         {children}
         <script
           defer
