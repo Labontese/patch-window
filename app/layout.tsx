@@ -1,4 +1,5 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { safeJsonLd } from '@/lib/jsonld'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -43,6 +44,14 @@ export const metadata: Metadata = {
     locale: 'en_US',
     type: 'website',
     url: SITE_URL,
+    images: [
+      {
+        url: '/images/og-default.png',
+        width: 1200,
+        height: 630,
+        alt: 'Patch Window',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
@@ -65,6 +74,11 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: '/apple-icon', type: 'image/png', sizes: '180x180' }],
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 const organizationJsonLd = {
@@ -113,8 +127,8 @@ export default function RootLayout({
         <TweaksPanel />
         <EasterEgg />
         {children}
-        <script
-          defer
+        <Script
+          strategy="afterInteractive"
           src="https://analytics.holmdigital.se/script.js"
           data-website-id="2e94eb8f-6fe9-47d6-b1af-a8485f65d4ba"
         />
