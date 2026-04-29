@@ -56,7 +56,7 @@ export default async function BriefPage({ params }: Props) {
     '@type': 'NewsArticle',
     headline: meta.title,
     description: meta.excerpt,
-    image: `https://patchwindow.serverdigital.net/${meta.format}/${slug}/opengraph-image`,
+    image: 'https://patchwindow.serverdigital.net/opengraph-image',
     datePublished: meta.publishedAt,
     dateModified: meta.updatedAt ?? meta.publishedAt,
     author: {
