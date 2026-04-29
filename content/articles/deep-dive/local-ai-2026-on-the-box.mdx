@@ -1,0 +1,121 @@
+---
+title: "Local AI in 2026: what's on the box, and why I built it"
+format: deep-dive
+slug: local-ai-2026-on-the-box
+pathway: homelab-edge
+tags:
+  - local-ai
+  - ollama
+  - sillytavern
+  - stable-diffusion
+  - forge
+  - mag-mell
+  - pony-xl
+  - controlnet
+  - vram
+  - consumer-hardware
+publishedAt: 2026-04-29T10:00:00+02:00
+excerpt: "Local AI on a single RTX 3060: Ollama, SillyTavern, and Stable Diffusion WebUI Forge. What's on the box, why those choices, and what changed in 2026."
+draft: false
+lang: en
+---
+
+The policy email arrived on a Tuesday. Updated terms, expanded refusals, retroactive enforcement on conversations going back months. The vendor framed it as safety. What it actually was: a unilateral change to what the tool I had been paying for would do. No negotiation, no migration window, no opt-out beyond cancellation.
+
+Cancel I did. Then I built the replacement.
+
+The local stack runs on a single RTX 3060 with 12 GB of VRAM. Ollama for text, Stable Diffusion WebUI Forge for image, SillyTavern as the glue between them. Eighteen models on disk, three character archetypes, one batch file to start the whole thing. Total cost after the GPU: my evenings.
+
+None of those pieces are new. Ollama has been around since 2023. SillyTavern is older than that. Forge has been the consumer-grade fork people actually run for the better part of a year. The reason the article is worth writing now is that the combination crossed a line this spring. It went from "interesting if you have an A100" to production-quality on the kind of card people buy for gaming. The local conversation has been about possibility. It is now about practicality.
+
+What follows is what is on the box, why those specific pieces, and the half-dozen choices that were not obvious enough for me to get right on the first try. The motivating premise, that cloud AI has stopped being AI as a service and started being AI under a content policy, is real, and the article comes back to it at the end. The middle is hardware, configuration, and the surprises.
+
+One thing I will say up front, because it changes how the rest of this reads. This stack does not care what I do with it. It is mine. The model does not have a position on my use case, the frontend does not phone home, the image generator does not check a list before it runs. That is not a feature. It is the architecture. Every paragraph in this article assumes that frame. If your interest in local AI is purely about latency or cost, parts of what follows will read as overstated. If your interest is about who gets a vote on what your tools will do, the article is for you.
+
+## What "local AI" actually means now
+
+"Local AI" has been a phrase for years, and it has meant different things at different times. In 2022 it meant a 7B model on a laptop, slow and dumb but yours. In 2024 it meant a 13B model on a 24 GB workstation card, slower than a cloud API and noticeably worse at most things. The phrase is still in circulation in 2026, and people who haven't run a local stack in a year tend to assume it still means roughly that. It doesn't.
+
+What it means now, on consumer hardware, is a 12B Mistral Nemo finetune with persona consistency the cloud APIs no longer match for character-driven work, an SDXL checkpoint that produces 1024×1024 images in 25 to 45 seconds, and a frontend that ties the two together with a wand icon in a chat input. All of it on a single GPU you can buy at a local electronics store. The latency is comparable to a hosted service. The output quality, for the kind of work I do, is better than what comes back from the major cloud vendors after the safety pass.
+
+The architectural premise is the same as it has always been: model weights on local disk, inference on local hardware, no outbound traffic that isn't `apt`, `pip`, or `git`. What has changed is the gap between that premise and what cloud APIs actually deliver. The gap used to favor the cloud, with better models, better tooling, lower friction. Each of those three has narrowed.
+
+Better models is the headline change. The open-weights ecosystem has shipped finetunes that beat the consumer-tier cloud APIs at specific tasks, including persona-driven prose, where the cloud models have moved in the opposite direction under tightening content policy. Better tooling caught up almost incidentally. Ollama abstracted away the parts of llama.cpp that used to be barriers, and frontends like SillyTavern matured past the rough early versions. Lower friction is the part that still favors the cloud, but only for the first hour. After the GPU is paid for and the batch file works, the friction is roughly zero per session.
+
+The piece that is genuinely different now, and the reason the article is being written this spring rather than last year, is that cloud AI has become a different kind of product. It is no longer "AI as a service." It is AI under a content policy, and the policy is the product. The model is what you get if the policy lets you have it. Local AI is the alternative arrangement: you get whatever the model can do, on whatever schedule you set, against whatever constraints you decide are sensible for your own work. That is not a feature comparison. It is a different deal.
+
+## The stack on one machine
+
+The hardware is an RTX 3060 with 12 GB of VRAM. The card is two generations old at this point and the next-tier consumer Nvidias have launched twice since it came out. It is also still the cheapest 12 GB card on the second-hand market, and 12 GB is the threshold below which the local-AI conversation gets cramped. Windows reports it as 4 GB through WMI on some configurations, which is a known wraparound bug for cards above 4 GB, and the only number that should be trusted is what `nvidia-smi` returns.
+
+Three pieces of software run on it.
+
+| Component | Version | Port |
+|---|---|---|
+| Ollama | 0.21.2 | 11434 |
+| SillyTavern | git release-branch, commit `aa50edcf4` | 8000 |
+| Stable Diffusion WebUI Forge | f2.0.1, commit `dfdcbab6` | 7860 |
+
+Ollama is the runtime. It serves eighteen models totalling 71 GB on disk. I keep model weights off the system drive and point the runtime at the spacious one through the user-level `OLLAMA_MODELS` environment variable. That is the whole story. It is a five-minute fix that pays for itself the first time you pull a 12B-parameter Q4_K_M and don't have to think about disk.
+
+SillyTavern is the frontend. It is a Node.js app talking to Ollama through the OpenAI-compatible endpoint at `http://localhost:11434/v1`, with prompt templates, sampler presets, character cards, persona management, and an extensions panel that includes image generation. It runs from a clone of the project repo, with no account required and no telemetry going anywhere it shouldn't. The chat history lives in the install directory until I delete it.
+
+Forge is the image generator. It is the lllyasviel fork of AUTOMATIC1111's webui, with better VRAM handling and ControlNet integrated into the base UI. The default model is Pony Diffusion XL V6, a 6.46 GB SDXL checkpoint at `models\Stable-diffusion\ponyDiffusionV6XL.safetensors`. ADetailer for face and hand fixing is installed; ControlNet has OpenPose, Canny, and Depth in `models\ControlNet\` at 2.33 GB each. The total disk footprint of the image side, including extensions and ControlNet weights, is about 20 GB.
+
+One batch file starts Ollama if it isn't already running, launches Forge in its own window, and brings up SillyTavern in the foreground. The browser opens to `http://localhost:8000` and the wand icon in the chat input talks to Forge through the SillyTavern image extension. End to end, the boot is about a minute on warm cache.
+
+## The non-obvious decisions
+
+The stack above is not what comes out of the box. Each of the following five choices replaces a more popular default, and each replacement was the difference between a setup that worked the way I wanted and one that didn't quite. None of these are universal recommendations. They are the decisions that paid off on this hardware for this kind of work.
+
+**Mag Mell R1 over Lumimaid-Magnum and Rocinante.** All three are 12B Mistral Nemo finetunes in the same parameter class, and on paper any of them is a defensible default. Mag Mell wins on persona consistency. It is a six-model DARE-TIES merge tuned specifically for character-driven sessions, and it stays in voice past the 10K-token mark where Lumimaid-Magnum starts repeating and Rocinante starts drifting toward shorter, more cinematic beats. The decision was not which one is best in the abstract. It was which one breaks last in a long session, and the answer was Mag Mell. It is also native on Ollama, which removes the GGUF-import step and keeps the model up to date through the same registry as everything else on disk.
+
+**Pony Diffusion XL V6 over RealVis and Juggernaut.** RealVis and Juggernaut are the two SDXL checkpoints most people land on for general image generation. They produce clean output and they ask less of your prompt. Pony XL is the opposite. It demands a score-tag prefix (`score_9, score_8_up, score_7_up`) and a corresponding negative, and it is opinionated about what it produces. The reason it wins as default is the same reason most people skip it: it is finetuned hard, including for the work I actually do. RealVis would force me to layer a LoRA on top to get there. Pony is already there, and the score-tag system gives me explicit quality control that the more general checkpoints don't expose.
+
+**ChatML over Mistral Instruct as the prompt template.** This is the one most people get wrong on the first try. Mag Mell is a Mistral Nemo finetune, and Mistral Instruct is the obvious template to pair with it. The actual base is `Mistral-Nemo-Base-2407-chatml`, and the tokens the model expects at the boundary of every turn are `<|im_start|>` and `<|im_end|>`, which is ChatML, not Mistral Instruct. Run it under the wrong template and the AI assistant tone bleeds back in: apology paragraphs, "as an AI" framings, refusals on requests the model would otherwise complete cleanly. The fix is one dropdown in SillyTavern. The cost of getting it wrong is convincing yourself the model is censored when the template is doing the censoring.
+
+**Forge over AUTOMATIC1111 webui.** A1111 is still the most-Googled webui for Stable Diffusion, and most online tutorials default to it. Forge, the lllyasviel fork, is what runs better on a 12 GB card. It manages VRAM more aggressively, ships ControlNet integration in the base UI without an extension dance, and boots faster. The trade-off is that some niche A1111 extensions don't have a Forge equivalent yet. For the work I do, none of them mattered. The card runs cooler under Forge and the second pass of an ADetailer face fix lands without an out-of-memory restart, and that is what I optimize for.
+
+**Character cards with structured placeholders over ad-hoc system prompts.** The obvious way to give an LLM a character is to write a paragraph in the system prompt and let the model figure it out. SillyTavern's v2 character card format does something different: it gives you fields (`description`, `scenario`, `first message`, `example dialogue`) and forces you to fill them. The placeholder pattern in my templates, fields like `[ÅLDER]`, `[PERSONLIGHET]`, and `[SCEN]`, pushes the same discipline a step further by making the empty fields visible. The result is not a better prompt. The result is a prompt I had to think through, which is a better prompt by accident. Section 5 goes into why this matters more than the model choice for persona consistency.
+
+## VRAM tetris on 12 GB
+
+12 GB is the threshold below which this stack gets unpleasant, and it is also the point above which it gets comfortable in a way 8 GB never quite does. Mag Mell R1 sits at about 9 GB during inference. Pony Diffusion XL V6 wants 6 to 7 GB during a generation pass. A browser with a couple of YouTube tabs in the background takes another 2 to 3 GB before it gets noticed. The card is 12 GB. The arithmetic does not work out the way you would want it to, and yet the stack runs. Why it runs is the interesting part.
+
+Two things keep it inside the budget. The first is that the text and image models do not need the GPU at the same instant. A chat turn finishes, the wand icon triggers a generation, Mag Mell yields VRAM during the seconds Forge is running its diffusion steps, and then the order reverses for the next turn. Ollama's runtime is reasonable about releasing memory when a request completes, and Forge is reasonable about taking what it needs and giving it back. The handoff is not coordinated by any orchestrator. It just works because both processes behave when they are not actively computing.
+
+The second is that the failure modes are graceful and well-documented. ADetailer plus ControlNet running on top of a 1024×1024 Pony pass is the configuration that pushes the card to the edge. The fallback is to drop the resolution to 832×1216, which loses no quality on portrait orientations and most of the time is a better aspect ratio anyway. The next fallback is the `--medvram-sdxl` flag in `webui-user.bat`, which trades speed for headroom. The hard fallback is `taskkill /IM ollama.exe /F` to free 9 GB instantly when something needs to ship and the chat session can resume later.
+
+What 12 GB buys, that 8 GB doesn't, is the ability to keep both engines warm. On 8 GB you have to pick, text or image, and reload the other one when you switch. On 12 GB you don't. The wand icon works on the same chat turn the model finishes typing, with no tab swap, no reload, no model unload-and-reload cycle. That difference is what makes the integration feel like one product instead of two programs sharing a desktop.
+
+## Character cards are the unlock you don't expect
+
+The model choice gets all the attention. It is the part people benchmark, the part with leaderboards, the part that has community discussions about which finetune lasts longest before drifting. The model choice matters. It also matters less than the other thing that happened when I switched from cloud to local, which is that I started writing characters into structured files instead of paragraphs into system prompts.
+
+A SillyTavern v2 character card is a JSON file with named fields: `description`, `scenario`, `first message`, `example dialogue`, `personality`, and a few others. The fields are the difference. A system prompt is one block of text where everything blurs together: the character, the setting, the tone, the rules, and the model has to figure out which sentence is which. A card forces the writer to put the character in one field, the situation in another, and the example beats in a third. The model still reads it as one prompt under the hood, but the discipline of filling the fields produces a better prompt than the one I would have written as a paragraph.
+
+The placeholder pattern is the second-order effect. My templates leave the variable parts empty: `[ÅLDER]`, `[PERSONLIGHET]`, `[SCEN]`. When I open a card to use it, the unfilled placeholders are visible, and I have to make a choice for each one. That is the unlock. Without the empty fields I default to vagueness, "she's friendly", "they meet at work", and the model gives me back vagueness. With the fields visible, I write a specific personality, a specific setting, and a specific scene, and the model gives me back something specific.
+
+The persona side does the same thing for the user. SillyTavern's persona management lets me define who I am in the scene, with the same kind of structured fields, and the model treats it as part of the prompt. The combination, character defined, persona defined, scenario defined, produces sessions that hold together for hundreds of turns without the drift that the same model exhibits when given a paragraph and asked to figure it out.
+
+Three archetypes cover most of the work: Linnea the shopkeeper you keep running into, Marika the neighbour who lives one floor up, and Therese the colleague who shows up at the same client meetings. They share a structural property, recurring meetings in an established setting, that lowers the worldbuilding load and lets the model focus on voice. None of those archetypes are inventions. They are templates with placeholders, filled differently each time.
+
+## What this stack is for, and what it isn't
+
+Six paragraphs into this article I described the stack as eighteen models, three archetypes, and a batch file. That is what it is in inventory. What it is in practice is harder to put a single label on, and the right way to describe it is by saying what it isn't.
+
+It isn't a cloud-API replacement for team work. There is no shared workspace, no audit log, no role-based access. One user, one machine, one chat history that lives on a local SSD until I delete it.
+
+It isn't a coding assistant. The models on it are tuned for prose and conversation, not for code generation, and the workflow is built around character-driven sessions rather than IDE integration. If you want a local code assistant, the answer is different models and a different frontend. That is a separate article.
+
+It isn't a RAG platform. There is no vector store, no document ingestion pipeline, no retrieval layer. The context window is the context window. If you want a local research-and-citation rig, again, different stack.
+
+What it is, is the place where AI runs without anyone else getting a vote. The model does what I tell it to do. The frontend remembers what I said last week without sending it to a third party. The image generator runs the prompt I give it, on the schedule I set, against the safety constraints I configure (which is to say: the constraints I have decided are sensible for my own work). Local AI is what AI looks like when nobody else gets a vote.
+
+This is, I notice, an awkward thing to write on a publication that Google indexes for a living. So let me put it carefully: I am not arguing that all AI use cases should be local, or that cloud APIs are wrong, or that policy is bad. I am arguing that the trade-off was always there, and that the cloud side of the trade-off has been getting steadily worse for the kind of work I happen to do. That is a private observation, not a recommendation. The publication is about practitioners running real systems on real hardware. The hardware here is bog-standard. The decision to run it on my own machine isn't.
+
+If that frame holds for you, the eighteen models and the batch file are five minutes of disk space and an evening of configuration. If it doesn't, you already have a cloud subscription that does the work, and that is fine. The point of writing this down is that the threshold has moved, and people who needed to know that did not always know it.
+
+---
+
+[Daniel Gustafsson](/about/daniel)
