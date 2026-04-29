@@ -10,6 +10,15 @@ const nextConfig = {
   output: 'standalone',
   // Fail loud on missing env-vars — no silent fallback in production
   env: {},
+  async redirects() {
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/icon.png',
+        permanent: false,
+      },
+    ]
+  },
 }
 
 /** @type {import('rehype-pretty-code').Options} */
