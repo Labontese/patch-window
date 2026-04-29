@@ -28,7 +28,7 @@
     "shiki": "^3.0.0"
   },
   "devDependencies": {
-    "@holmdigital/engine": "^2.4.1",
+    "@holmdigital/engine": "^2.5.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
