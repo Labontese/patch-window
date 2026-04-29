@@ -23,9 +23,9 @@ export default function TerminalHeader({ articleCount }: Props) {
 
       <nav aria-label="Site navigation">
         <ul className="v2-head__nav">
-          <li><a href="/format/deep-dive">Deep Dives</a></li>
-          <li><a href="/format/hot-take">Hot Takes</a></li>
-          <li><a href="/format/brief">Briefs</a></li>
+          <li><a href="/deep-dive">Deep Dives</a></li>
+          <li><a href="/hot-take">Hot Takes</a></li>
+          <li><a href="/brief">Briefs</a></li>
           <li><a href="/feed.xml" aria-label="RSS feed">RSS</a></li>
           <li><a href="/about">About</a></li>
         </ul>
