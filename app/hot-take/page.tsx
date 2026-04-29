@@ -5,6 +5,8 @@ import InnerFooter from '@/components/InnerFooter'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
+const BASE = 'https://patchwindow.serverdigital.net'
+
 export const metadata: Metadata = {
   title: 'Hot Takes',
   description: 'Fast, opinionated reactions to things that ship and deserve a response.',
@@ -12,7 +14,9 @@ export const metadata: Metadata = {
     title: 'Hot Takes',
     description: 'Fast, opinionated reactions to things that ship and deserve a response.',
     type: 'website',
+    url: `${BASE}/hot-take`,
   },
+  twitter: { card: 'summary_large_image', creator: '@DanneGsson' },
 }
 
 export default function HotTakeIndexPage() {

@@ -5,6 +5,8 @@ import InnerFooter from '@/components/InnerFooter'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
+const BASE = 'https://patchwindow.serverdigital.net'
+
 export const metadata: Metadata = {
   title: 'Deep Dives',
   description: 'Full technical analysis, tested against real hardware. 1500 words and up.',
@@ -12,7 +14,9 @@ export const metadata: Metadata = {
     title: 'Deep Dives',
     description: 'Full technical analysis, tested against real hardware. 1500 words and up.',
     type: 'website',
+    url: `${BASE}/deep-dive`,
   },
+  twitter: { card: 'summary_large_image', creator: '@DanneGsson' },
 }
 
 export default function DeepDiveIndexPage() {

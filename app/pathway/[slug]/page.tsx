@@ -9,6 +9,9 @@ import InnerHeader from '@/components/InnerHeader'
 import InnerFooter from '@/components/InnerFooter'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { safeJsonLd } from '@/lib/jsonld'
+
+const BASE = 'https://patchwindow.serverdigital.net'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -32,7 +35,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: slug,
     description,
-    openGraph: { title: slug, description, type: 'website' },
+    openGraph: { title: slug, description, type: 'website', url: `${BASE}/pathway/${slug}` },
   }
 }
 
@@ -57,9 +60,17 @@ export default async function PathwayPage({ params }: Props) {
 
   const articles = getArticlesByPathway(slug)
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    url: `${BASE}/pathway/${slug}`,
+  }
+
   return (
     <>
       <InnerHeader />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
       <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
         <Breadcrumbs
           items={[

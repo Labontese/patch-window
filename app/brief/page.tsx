@@ -5,6 +5,8 @@ import InnerFooter from '@/components/InnerFooter'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
+const BASE = 'https://patchwindow.serverdigital.net'
+
 export const metadata: Metadata = {
   title: 'Briefs',
   description: 'News with the context that makes it useful for people running real systems.',
@@ -12,7 +14,9 @@ export const metadata: Metadata = {
     title: 'Briefs',
     description: 'News with the context that makes it useful for people running real systems.',
     type: 'website',
+    url: `${BASE}/brief`,
   },
+  twitter: { card: 'summary_large_image', creator: '@DanneGsson' },
 }
 
 export default function BriefIndexPage() {
