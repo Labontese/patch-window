@@ -1,0 +1,58 @@
+---
+title: "Vault 2.0: not the major release you think it is"
+format: brief
+slug: vault-2-0-released
+pathway: infrastructure-strategy
+tags:
+  - vault
+  - hashicorp
+  - secrets-management
+  - ibm
+  - breaking-changes
+publishedAt: 2026-04-30T12:00:00+02:00
+excerpt: "HashiCorp Vault Enterprise 2.0 went GA on 13 April 2026, jumping from 1.21 to 2.0. The major bump is administrative, driven by IBM's support model. The breaking changes for operators are smaller than the version number suggests, but they will trip rekey automation."
+draft: false
+lang: en
+---
+
+Vault Enterprise 2.0 was released on 13 April 2026. The version number is misleading. HashiCorp did not rebuild Vault. The jump from 1.21 to 2.0 is administrative, driven by HashiCorp's move under IBM and the switch to IBM's Support Cycle-2 lifecycle. There are real breaking changes, but the architecture is the same.
+
+If you are upgrading from 1.21, three things matter.
+
+## The support model is different
+
+The previous HashiCorp LTS approach is gone. Vault 2.0 receives at least two years of standard support, a third year of extended support with critical fixes and security updates only, and years four through six of usage guidance. If your team built procurement assumptions on the old LTS contract, audit them before signing the renewal.
+
+## Azure auth precedence flipped
+
+The Azure auth method now gives `auth/azure/config` precedence over `AZURE_*` environment variables. Previously the env vars overrode the stored config in some paths. If your deployment relies on environment variable overrides, the override silently stops working after upgrade.
+
+Audit anywhere `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, or `AZURE_CLIENT_SECRET` are set in pod specs or systemd units. Update the stored config explicitly to match.
+
+## Three sys-endpoints now require authentication
+
+`sys/rekey`, `sys/generate-root`, and `sys/replication/dr/secondary/generate-operation-token` previously accepted seal or recovery key fragments without a Vault token. They now require both: a valid token *and* the key fragment.
+
+The reason is sound. Without authentication, an attacker could submit garbage key fragments to lock out legitimate rekey operations. The cost is operational: most rekey automation scripts run unauthenticated by design. They will fail silently after upgrade unless updated to provide a token, or unless `enable_unauthenticated_access` is set for backward compatibility.
+
+Set the compat flag if you need the upgrade window to land cleanly, then retrofit the scripts.
+
+## What 2.0 actually adds
+
+- Workload Identity Federation for secret syncing without long-lived static credentials.
+- SCIM 2.0 identity provisioning.
+- SPIFFE JWT-SVID support.
+- Envelope encryption for streaming and large workloads.
+- Linux credential rotation expanded.
+- Public CA integration.
+- Redesigned UI with guided onboarding.
+
+These are useful, but none of them are the reason for the version bump.
+
+## Should you upgrade?
+
+If you are on 1.21, plan the move within the next quarter. The two year standard support clock starts now, and 1.21 will roll off support before the second IBM Support Cycle-2 release lands.
+
+Before upgrading: check rekey automation, check Azure auth config, check whether your support contract terms changed. Test on a non-production cluster first.
+
+Read the [Vault 2.0 announcement](https://www.hashicorp.com/en/blog/vault-enterprise-20-modernizes-identity-security-at-scale), the [important changes documentation](https://developer.hashicorp.com/vault/docs/updates/important-changes), and the [release notes](https://developer.hashicorp.com/vault/docs/updates/release-notes) before planning the upgrade.
