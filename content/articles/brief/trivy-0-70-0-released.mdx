@@ -1,0 +1,49 @@
+---
+title: "Trivy 0.70.0: the first release after the supply chain incident"
+format: brief
+slug: trivy-0-70-0-released
+pathway: sysadmin-craft
+tags:
+  - trivy
+  - security
+  - supply-chain
+  - container-scanning
+  - aqua-security
+publishedAt: 2026-04-30T11:00:00+02:00
+excerpt: "Trivy 0.70.0 shipped 17 April 2026, the first release after the March supply chain incident. It bundles new features, but the change that breaks CI silently is the rotated GPG key for deb/rpm."
+draft: false
+lang: en
+---
+
+Trivy 0.70.0 was released on 17 April 2026, four weeks after the March 19 supply chain incident that pushed a malicious v0.69.4 to GHCR, ECR Public, Docker Hub, and several package managers for roughly three hours. The release notes are upbeat. The footnote about a rotated GPG key is what will break your pipeline.
+
+## The GPG rotation
+
+Aqua Security rotated the public GPG key used to sign deb and rpm packages. CI runners that install Trivy via `apt` or `yum` will fail signature verification on the next pull unless the new key is imported.
+
+The release notes mention the rotation in passing. The fix is one line: import the new key from the official Aqua repository before your runner's update step. If you pin Trivy by container digest pulled from GHCR or ECR Public, the rotation does not affect you. If you install via package manager on each run, it does.
+
+Audit your CI scripts. The break is silent on misconfigured pipelines because some runners cache packages and skip verification.
+
+## What is actually new in 0.70.0
+
+- **Go binary version detection with `-trimpath`.** Trivy now reads ELF symbol tables to identify Go versions in stripped binaries. Common images like Grafana and Calico used to show unknown Go versions; now they resolve.
+- **Maven proxy from `settings.xml`.** The Java POM parser respects proxy configuration including protocol filters and authentication. Useful inside corporate networks where Maven Central is fronted.
+- **Python `pylock.toml` (PEP 751).** Vulnerability scanning of Python's new lock file format.
+- **Client/server JSON metadata.** Reports include server version, database metadata, and update timestamps. Useful for compliance evidence that the scan ran against a fresh database.
+- **Azure ARM templates for AKS.** Full misconfiguration scanning, plus Azure resource ID resolution in Terraform.
+- **Unified third-party OS package filtering** across distros. Cuts false positives from non-official repositories.
+
+## Notable fixes
+
+CVSS v4 ratings now render correctly in CycloneDX output. Go 1.26 stdlib parsing warnings are silenced. Java dependency exclusion merging behaves correctly. Poetry segfaults on certain lock files are gone. SBOM Red Hat BuildInfo is preserved through conversion.
+
+## Should you upgrade?
+
+Yes, but plan the GPG rotation.
+
+If you pin Trivy by digest in CI, do these in order: pull v0.70.0 by digest from GHCR or ECR Public, verify the digest matches an entry published after 17 April 2026 06:50 UTC, update the pin. If you install via apt or yum, import the new key first, then upgrade.
+
+The new features alone are not urgent. The reason to move now is consolidation: 0.70.0 is the first release that is unambiguously published after the rotated credentials, on rotated infrastructure, signed with the rotated key. Anything earlier in the 0.69.x line carries trust questions even when the binary itself is clean.
+
+Read the [v0.70.0 release notes](https://github.com/aquasecurity/trivy/releases/tag/v0.70.0), the [highlights discussion](https://github.com/aquasecurity/trivy/discussions/10546), and the [post-incident advisory](https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know/) before you roll out.
