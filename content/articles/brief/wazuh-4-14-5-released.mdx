@@ -1,0 +1,53 @@
+---
+title: "Wazuh 4.14.5: a security patch they didn't call a security patch"
+format: brief
+slug: wazuh-4-14-5-released
+pathway: aiops-observability
+tags:
+  - wazuh
+  - siem
+  - security
+  - cve
+  - patch-management
+publishedAt: 2026-04-30T09:00:00+02:00
+excerpt: "Wazuh 4.14.5 shipped 23 April 2026. The release notes read like routine maintenance. Five GitHub security advisories published five days later say otherwise."
+draft: false
+lang: en
+---
+
+Wazuh 4.14.5 shipped on 23 April 2026. The official release notes describe a maintenance update: dependency bumps, init script tweaks, a Windows Syscollector change to include command arguments. No CVE identifiers, no severity labels, no urgency call.
+
+Five days later, on 28 April, Wazuh published five GitHub security advisories that map back to fixes in the 4.14.5 changelog. That gap is the story.
+
+## What's actually fixed
+
+The manager picked up eight fixes that read like a coordinated security audit:
+
+- RBAC bypass in DAPI allowing privilege escalation (#35307)
+- Path traversal in `authd` via agent group name validation (#35230)
+- Buffer overflow in `analysisd` regex match processing (#35106)
+- `size_t` underflow in `remoted` `ReadSecMSG` causing potential heap overflow (#35193), published as CVE-2026-28221, a pre-auth stack overflow on TCP/1514
+- Uncontrolled memory allocation in cluster from a crafted packet length (#35173, #35412)
+- Rate-limit bypass for the `/events` endpoint (#35077)
+- DAPI callable resolution restricted to exposed resources only (#34889)
+- API brute-force protection bypass via race condition, published as CVE-2026-26206
+
+The agent picked up a heap buffer overflow in `syscheck` Registry Wildcard Expansion (#35287) on Windows.
+
+CVE-2026-28221 is the one to watch. Pre-auth, reachable on the agent registration port, x86_64 sign-extension issue. The kind of bug that gets a public PoC inside three months once researchers find it.
+
+## The pattern
+
+This is the third security-driven release in the 4.14 line. 4.14.3 (February) fixed CVE-2026-25769, the cluster deserialization RCE. 4.14.4 (March) fixed CVE-2026-30893, the cluster path-traversal RCE. 4.14.5 (April) bundles eight more.
+
+Three releases, three coordinated patch windows, no blog posts. If you read only the release notes you wouldn't know.
+
+## Should you upgrade?
+
+Yes. Today if you can.
+
+Two reasons. One: at least one of the fixes (CVE-2026-28221) is reachable pre-authentication on a port operators commonly leave open. Two: the disclosure cadence Wazuh used for CVE-2026-25769 was three months from patch to public PoC. Apply the same timeline here and exploit code lands in late July.
+
+The upgrade from 4.14.4 is a standard cumulative bump. No schema migration, no breaking config changes. Windows operators should expect larger Syscollector logs because command arguments are now included.
+
+Read the [official 4.14.5 release notes](https://documentation.wazuh.com/current/release-notes/release-4-14-5.html) and check the [Wazuh advisories page](https://github.com/wazuh/wazuh/security/advisories) for the full GHSA list before you plan the rollout.
