@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
-import { PATHWAYS } from '@/lib/types'
+import { PATHWAYS, getPathwayDisplayName } from '@/lib/types'
 import { getArticlesByPathway } from '@/lib/articles'
 import InnerHeader from '@/components/InnerHeader'
 import InnerFooter from '@/components/InnerFooter'
@@ -23,19 +23,23 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
+  const displayName = getPathwayDisplayName(slug)
   const filePath = path.join(process.cwd(), 'content', 'pathways', `${slug}.mdx`)
 
-  let description = `Articles in the ${slug} pathway.`
+  let description = `Articles in the ${displayName} pathway on Patch Window.`
   if (fs.existsSync(filePath)) {
     const raw = fs.readFileSync(filePath, 'utf-8')
     const { data } = matter(raw)
     if (data.description) description = data.description as string
   }
 
+  const url = `${BASE}/pathway/${slug}`
+
   return {
-    title: slug,
+    title: displayName,
     description,
-    openGraph: { title: slug, description, type: 'website', url: `${BASE}/pathway/${slug}` },
+    alternates: { canonical: url },
+    openGraph: { title: displayName, description, type: 'website', url },
   }
 }
 
@@ -48,7 +52,7 @@ export default async function PathwayPage({ params }: Props) {
 
   const filePath = path.join(process.cwd(), 'content', 'pathways', `${slug}.mdx`)
   let Content: React.ComponentType | null = null
-  let title = slug
+  let title = getPathwayDisplayName(slug)
 
   if (fs.existsSync(filePath)) {
     const raw = fs.readFileSync(filePath, 'utf-8')

@@ -9,14 +9,16 @@ import Subscribe from '@/components/patchlog/Subscribe'
 import TerminalFooter from '@/components/patchlog/TerminalFooter'
 
 export const metadata: Metadata = {
-  title: 'Patch Window',
+  title: 'Patch Window: Linux, DevOps & AI in production',
   description:
     'Linux, networking, containers, DevOps, and AI in production environments. Written by a practitioner.',
+  alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
-    title: 'Patch Window',
+    title: 'Patch Window: Linux, DevOps & AI in production',
     description:
       'Linux, networking, containers, DevOps, and AI in production environments. Written by a practitioner.',
+    url: 'https://patchwindow.serverdigital.net/',
   },
 }
 
