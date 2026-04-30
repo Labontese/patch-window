@@ -1,0 +1,51 @@
+---
+title: "Traefik 3.6.14: five CVEs and a percent-encoded auth bypass"
+format: brief
+slug: traefik-3-6-14-released
+pathway: aiops-observability
+tags:
+  - traefik
+  - reverse-proxy
+  - security
+  - cve
+  - middleware
+publishedAt: 2026-04-30T10:00:00+02:00
+excerpt: "Traefik 3.6.14 shipped 21 April 2026 with patches for five CVEs. One of them, CVE-2026-40912, lets unauthenticated requests bypass ForwardAuth, BasicAuth, and DigestAuth via percent-encoded prefix tricks."
+draft: false
+lang: en
+---
+
+Traefik 3.6.14, 2.11.43, and 3.7.0-rc.2 shipped on 21 April 2026. Five CVEs, all addressing authentication and request-handling middleware. The release announcement on the Traefik Labs forum is short. The five GitHub Security Advisories published the same day are not.
+
+The CVE worth reading first is CVE-2026-40912.
+
+## What CVE-2026-40912 actually does
+
+The bug lives in `StripPrefixRegex`. The middleware matches its regex against the decoded URL path but uses the resulting byte length to slice the still percent-encoded raw path. The lengths do not match when the URL contains percent-encoded characters, so the slice produces a path with dot-segments the upstream auth middleware does not recognize.
+
+A request to `/api%2e/admin/secret` is treated as `/admin/secret` after stripping for the upstream check, but the original raw form passes through to the backend. `ForwardAuth`, `BasicAuth`, and `DigestAuth` all see the wrong path. The advisory rates it CVSS 7.8 High, network reachable, unauthenticated.
+
+If you run StripPrefixRegex in the same chain as one of those auth middlewares, you have a pre-auth bypass on a path you thought was protected.
+
+## What else 3.6.14 fixes
+
+- CVE-2026-39858 (CVSS 7.8): header sanitization ignored underscore-aliased forwarded headers (`X_Forwarded_Proto` instead of `X-Forwarded-Proto`). Backends that normalize the two equivalently can be spoofed.
+- CVE-2026-35051, CVE-2026-41263, CVE-2026-41174: three additional advisories. Read the GHSAs in full before you triage them.
+- `trustForwardHeader` on the forward auth middleware is fixed.
+- Request URL is now sanitized after prefix stripping, not before.
+
+## What 3.6.15 added on 29 April
+
+No CVEs. Dependency bumps for `go-acme/lego` to v4.35.2 (ACME client) and `vulcand/oxy` to v2.1.0. Two functional changes worth noting: the Errors middleware gets an `errorRequestHeaders` option, and ExternalName services no longer require a port.
+
+If you are running 3.6.13 or below, go straight to 3.6.15.
+
+## Should you upgrade?
+
+Yes. Today.
+
+Two reasons. CVE-2026-40912 is the kind of bug that gets a public PoC inside three months once researchers find percent-encoding parsing differentials. The exploit is one line in curl. CVE-2026-39858 is even simpler to test: send a request with an underscore in a forwarded header and check whether your auth backend sees it.
+
+The upgrade from 3.6.x is a standard cumulative bump. No schema migration, no breaking config. Operators on the 2.11 branch get the same fixes in 2.11.43.
+
+Read the [security update announcement](https://community.traefik.io/t/new-security-update-for-traefik-2-11-2-11-43-3-6-3-6-14-and-3-7-3-7-0-rc-2/29834) and the [GitHub Security Advisories list](https://github.com/traefik/traefik/security/advisories) before you plan the rollout.
