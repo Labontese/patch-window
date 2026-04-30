@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { ArticleMeta } from '@/lib/types'
+import { getPathwayDisplayName } from '@/lib/types'
 import FormatTag from './FormatTag'
 
 interface Props {
@@ -43,7 +44,7 @@ export default function ArticleCard({ article }: Props) {
             data-umami-event="pathway-click"
             data-umami-event-pathway={article.pathway}
           >
-            {article.pathway}
+            {getPathwayDisplayName(article.pathway)}
           </Link>
         )}
       </div>

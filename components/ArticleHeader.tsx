@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { ArticleMeta } from '@/lib/types'
+import { getPathwayDisplayName, slugToTitle } from '@/lib/types'
 import FormatTag from './FormatTag'
 
 interface Props {
@@ -34,7 +35,7 @@ export default function ArticleHeader({ meta }: Props) {
         </Link>
         {meta.pathway && (
           <Link href={`/pathway/${meta.pathway}`} className="pathway-badge">
-            {meta.pathway}
+            {getPathwayDisplayName(meta.pathway)}
           </Link>
         )}
       </div>
@@ -42,7 +43,7 @@ export default function ArticleHeader({ meta }: Props) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
           {meta.tags.map((tag) => (
             <Link key={tag} href={`/tag/${tag}`} className="tag-pill">
-              {tag}
+              {slugToTitle(tag)}
             </Link>
           ))}
         </div>

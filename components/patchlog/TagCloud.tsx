@@ -1,3 +1,5 @@
+import { slugToTitle } from '@/lib/types'
+
 interface TagCount {
   tag: string
   count: number
@@ -25,14 +27,16 @@ export default function TagCloud({ tags }: Props) {
           gap: '0.375rem',
         }}
       >
-        {tags.map(({ tag, count }) => (
+        {tags.map(({ tag, count }) => {
+          const label = slugToTitle(tag)
+          return (
           <li key={tag}>
             <a
               href={`/tag/${tag}`}
               className="tag-pill"
-              aria-label={`${tag} (${count} article${count !== 1 ? 's' : ''})`}
+              aria-label={`${label} (${count} article${count !== 1 ? 's' : ''})`}
             >
-              {tag}
+              {label}
               <span
                 style={{
                   marginLeft: '0.3em',
@@ -45,7 +49,8 @@ export default function TagCloud({ tags }: Props) {
               </span>
             </a>
           </li>
-        ))}
+          )
+        })}
       </ul>
     </section>
   )
