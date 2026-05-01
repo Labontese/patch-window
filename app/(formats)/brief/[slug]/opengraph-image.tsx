@@ -1,18 +1,19 @@
 /**
  * Per-artikel OG-bild — Brief.
  *
- * BRIEF-variant: minimal, neutral ton.
+ * Anvander den delade terminal-templaten (lib/og-terminal.tsx) for att halla
+ * visuell konsistens med deep-dive, hot-take, pathway och tag.
  *
  * Verifierat mot Context7 (Next.js 15, 2026-04-15).
  */
 
-import { ImageResponse } from 'next/og'
 import { getArticleByFormatAndSlug } from '@/lib/articles'
+import { renderTerminalOg, truncateSlug, OG_SIZE } from '@/lib/og-terminal'
 
 // force-dynamic: hindrar statisk pre-rendering. fs-anrop ej edge-kompatibelt.
 export const dynamic = 'force-dynamic'
 
-export const size = { width: 1200, height: 630 }
+export const size = OG_SIZE
 export const contentType = 'image/png'
 
 type Props = {
@@ -24,82 +25,9 @@ export default async function OgImage({ params }: Props) {
   const article = getArticleByFormatAndSlug('brief', slug)
   const title = article?.title ?? 'Patch Window'
 
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          background: '#0a1628',
-          padding: '64px 72px',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div
-            style={{
-              fontFamily: 'Courier New, monospace',
-              fontSize: 18,
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              color: '#a0a0a0',
-              border: '1px solid #a0a0a0',
-              padding: '6px 14px',
-              display: 'inline-flex',
-              alignSelf: 'flex-start',
-            }}
-          >
-            BRIEF
-          </div>
-
-          <div
-            style={{
-              fontFamily: 'Georgia, serif',
-              fontSize: 64,
-              fontWeight: 700,
-              color: '#ffffff',
-              lineHeight: 1.1,
-              letterSpacing: '-0.02em',
-              maxWidth: '900px',
-            }}
-          >
-            {title}
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-end',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'Georgia, serif',
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#a0a0a0',
-            }}
-          >
-            Patch Window
-          </div>
-          <div
-            style={{
-              fontFamily: 'Courier New, monospace',
-              fontSize: 36,
-              fontWeight: 700,
-              color: '#d4a017',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            $_
-          </div>
-        </div>
-      </div>
-    ),
-    { ...size }
-  )
+  return renderTerminalOg({
+    formatLabel: 'BRIEF',
+    command: `cat ${truncateSlug(slug)}.brief`,
+    title,
+  })
 }
