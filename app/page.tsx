@@ -9,15 +9,15 @@ import Subscribe from '@/components/patchlog/Subscribe'
 import TerminalFooter from '@/components/patchlog/TerminalFooter'
 
 export const metadata: Metadata = {
-  title: 'Patch Window: Linux, DevOps & AI in production',
+  title: 'Patch Window: Linux, DevOps & AI in production homelabs',
   description:
-    'Linux, networking, containers, DevOps, and AI in production environments. Written by a practitioner.',
+    'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
-    title: 'Patch Window: Linux, DevOps & AI in production',
+    title: 'Patch Window: Linux, DevOps & AI in production homelabs',
     description:
-      'Linux, networking, containers, DevOps, and AI in production environments. Written by a practitioner.',
+      'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
     url: 'https://patchwindow.serverdigital.net/',
   },
 }
