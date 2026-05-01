@@ -57,7 +57,7 @@ export default async function DeepDivePage({ params }: Props) {
     '@type': 'Article',
     headline: meta.title,
     description: meta.excerpt,
-    image: 'https://patchwindow.serverdigital.net/opengraph-image',
+    image: 'https://patchwindow.serverdigital.net/opengraph-image.png',
     datePublished: meta.publishedAt,
     dateModified: meta.updatedAt ?? meta.publishedAt,
     author: {
