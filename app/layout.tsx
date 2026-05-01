@@ -44,18 +44,22 @@ export const metadata: Metadata = {
     locale: 'en_US',
     type: 'website',
     url: SITE_URL,
+    // Note: Next.js automatically picks up app/opengraph-image.png as the
+    // default OG image. We list it here too so it propagates to twitter.images
+    // without each route having to re-declare it.
     images: [
       {
-        url: '/images/og-default.png',
+        url: '/opengraph-image.png',
         width: 1200,
         height: 630,
-        alt: 'Patch Window',
+        alt: 'Patch Window — Linux, AIOps, and the production homelab',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
     creator: '@DanneGsson',
+    images: ['/opengraph-image.png'],
   },
   robots: {
     index: true,
