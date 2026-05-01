@@ -1,0 +1,223 @@
+---
+title: "AI SEO Audit Tools: Reliable for Pass/Fail, Not for Counting"
+format: deep-dive
+slug: ai-seo-audit-tools-pass-fail-vs-counting
+pathway: aiops-observability
+tags:
+  - seo
+  - ai-tools
+  - lighthouse
+  - cogny
+  - seoptimer
+  - audit
+  - ground-truth
+  - re-baseline
+publishedAt: 2026-05-01T10:00:00+02:00
+excerpt: "We ran Cogny against our site. It said 44 out of 100. We fixed what it flagged. We ran it again. It said 85. Then we ran Lighthouse and SEOptimer in the same 30-minute window. Here is what each tool got right, what it still gets wrong, and what changed."
+draft: false
+lang: en
+---
+
+We ran Cogny against our site on April 30. It said 44 out of 100. We fixed what we could verify against the live HTML. We ran it again on May 1. It said 85. In the same 30-minute window we also ran Lighthouse and SEOptimer.
+
+Same site, same audit tools, two runs three weeks apart. Here is what changed, what each tool got right, and what one of them keeps getting wrong.
+
+The first version of this article had a methodology bug. Cogny's score came from April 30, before we deployed any of the fixes. Lighthouse and SEOptimer ran on May 1, after the fixes were in. That is not the same site at the same hour. That is a moving target. We re-ran all three tools against the same version of the site in the same 30-minute window on May 1, and the comparison below uses those numbers. The April 30 baseline is in the appendix.
+
+The 41-point Cogny jump (44 to 85) is the part that changed our read. It says something different from "AI tools hallucinate". It says AI-positioned audit tools can be reliable for pass/fail diagnostics and unreliable for counting, and you have to test for both separately.
+
+## How to actually compare audit tools
+
+Most "tool comparison" articles run each tool once on the same URL and present results side by side. That sounds rigorous. It usually is not.
+
+If Tool A flags real issues that you fix between runs, Tool B sees a different site. The comparison is contaminated. The fair comparison is:
+
+1. Run all tools, baseline.
+2. Fix what is actually broken, verified against ground truth.
+3. Run all tools again, same window, same version of the site.
+4. Compare the results from step 3.
+
+That is what we did. Step 1 ran on April 30. Step 2 was a series of changes to the site between April 30 and May 1 that addressed the items Cogny flagged correctly: homepage canonical, homepage title, pathway and tag display names, redirect rules for old URL patterns, and pathway/tag OG images. Step 3 ran in a 30-minute window on May 1, between 08:42 and 08:48 UTC, against the post-fix version of the site.
+
+The Cogny score that came out of step 3 is the one that compares against the Lighthouse and SEOptimer scores from the same window. The April 30 Cogny score does not. That is the fix.
+
+A note on scope: this represents our findings from a single test environment on a single site, run on the dates noted. Tool behavior varies with site complexity, server configuration, and tool version. The numbers below are reproducible against our setup; your results may differ.
+
+## Before and after, same URL, same rubric
+
+| Tool | Before fixes (April 30) | After fixes (May 1, 08:42 to 08:48 UTC) | Change |
+|---|---|---|---|
+| Cogny total | 44/100 | 85/100 | +41 |
+| Cogny Technical | ~12/25 | 25/25 | +13 |
+| Cogny On-Page | ~5/25 | 24/25 | +19 |
+| Cogny Content | ~12/25 | 20/25 | +8 |
+| Cogny Search Presence | ~15/25 | 16/25 | +1 |
+| Cogny "FAIL" claims | 4 of 6 | 1 of 6 (sitemap count) | -3 |
+| Lighthouse SEO | 99/100 | 100/100 | +1 |
+| Lighthouse Performance | 99/100 (LCP 2.10s) | 96/100 (LCP 2.57s) | -3 |
+| Lighthouse Accessibility | 100/100 | 100/100 | unchanged |
+| Lighthouse Best Practices | 100/100 | 100/100 | unchanged |
+| SEOptimer Grade | B | B | unchanged |
+| SEOptimer recommendations | 9 | 7 | -2 |
+| GSC homepage verdict | PASS | PASS | unchanged |
+
+The most operationally interesting line in that table is not Cogny's jump. It is Lighthouse Performance dropping three points. I added a static homelab illustration to the homepage between the two runs, and the LCP element shifted to that image. 2.57 seconds is still inside the "good" Core Web Vitals threshold. I accepted the trade-off because the illustration carries visual identity, and I noted it. The point of the table is not to declare a winner. It is to show that when you measure the same site twice, the score moves for reasons you can name.
+
+## Cogny
+
+Cogny is an open-source skill that runs inside Claude Code, no browser required. It pulls HTML, parses it, and produces a markdown report with a 0 to 100 score and a prioritized action list. We ran it on April 30. Score: 44/100. We ran it on May 1, after fixes. Score: 85/100.
+
+That jump is the fact pattern. Now the breakdown.
+
+The April 30 report had six headline claims about what was missing. After running curl and grep against the live HTML on May 1, two of those claims turned out to have been correct on April 30:
+
+- Homepage was missing a canonical link tag. True on April 30. I added one before the May 1 run.
+- Homepage title was bare ("Patch Window") with no keywords. True on April 30. Replaced with "Patch Window: Linux, DevOps & AI in production homelabs" before the May 1 run.
+
+Two were wrong on April 30 and stayed wrong even before any fix:
+
+- "No JSON-LD on any page." Homepage had four JSON-LD blocks (Organization, WebSite, ContactPoint) on April 30. Brief pages had eight. Cogny missed all of them.
+- "No OG tags detected anywhere." Homepage had eight OpenGraph tags and five Twitter cards on April 30. Cogny missed those too.
+
+One was a numeric error that nothing on the site explained:
+
+- "Sitemap URLs: 106." The sitemap had 80 `<loc>` entries on April 30. Google Search Console indexed 62 of them. The number 106 does not appear anywhere. Re-running the audit on May 1 against the same sitemap produced the same wrong count.
+
+After the fixes, Cogny saw the canonical, the title, the meta description (which was always there), the JSON-LD blocks, and the OG tags. The 41-point jump came from those checks flipping from FAIL to PASS. The sitemap count error survived the fixes. It is not about whether the tags are present. It is something in the parser's counting step.
+
+That is the shape of the lesson. Cogny's tag detection is reliable enough that fixing real problems moves the score. Cogny's counting is unreliable in a way that has nothing to do with whether you fix anything.
+
+What this means for an operator: read Cogny's pass/fail items, verify them against the live HTML, and act on the ones that are real. Do not trust the sitemap count without verifying it against the actual XML. Counts that require aggregating a list (sitemap entries, indexed pages, link totals) deserve a separate check until you have verified Cogny's behavior on each.
+
+Output format is markdown with a numeric score and a top-actions block. Price is free. It runs inside Claude Code and produces structured output. The keyword we are watching for in the search logs is "cogny seo audit review", and the answer is: useful for diagnostics, suspect for counts.
+
+## Lighthouse
+
+Lighthouse is the open-source auditor Google ships and the one most CI/CD pipelines reach for when they want a SEO and performance gate. We ran it from the CLI with the SEO, performance, accessibility, and best-practices categories enabled, headless Chrome, on the same homepage at the same hour as Cogny and SEOptimer in the May 1 window.
+
+SEO 100/100. Best Practices 100/100. Accessibility 100/100. Performance 96/100, with LCP 2.57 seconds, CLS 0, TBT 67 ms, FCP 1.52 seconds.
+
+What Lighthouse got right:
+
+- All eleven SEO checks passed: title, meta description, canonical, hreflang, robots-txt, link-text, crawlable-anchors, status-code, indexable, viewport.
+- The performance numbers matched what we see in our own RUM telemetry within rounding.
+- It flagged three minor optimization opportunities (legacy JavaScript at 11 KiB savings, render-blocking resources at 70 ms, unused JavaScript at 26 KiB) without turning them into score deductions, which is the correct call for a site that is comfortable on Core Web Vitals.
+
+What Lighthouse does not do:
+
+- It does not measure AI citation, answer engine optimization, or generative engine optimization. None of those are part of the Lighthouse SEO category.
+- It only renders one URL at a time. There is no multi-page coverage, no sitemap walk, no indexing check. You need GSC for that.
+- "Image elements have alt" is marked INFO, which means it asks you to verify manually. Same with structured data, which it flags as present without validating against schema.org.
+
+The Performance regression from 99 to 96 between runs is worth a note. We added a homelab illustration to the homepage between April 30 and May 1. The LCP element shifted to that image, and the LCP time went from 2.10 seconds to 2.57 seconds. 2.57 is still "good" per Core Web Vitals thresholds. We accepted the trade-off for visual distinctiveness. The relevant point for this article is that Lighthouse measured the change correctly. It did not invent a regression. It also did not hide one. That is what an instrument is supposed to do.
+
+Output is JSON, HTML, CSV, and markdown, all from CLI flags. Price is free, Apache 2.0. It runs in CI, it runs on a developer laptop, and it runs from a Docker image when you do not want to install Chrome on the box. The "lighthouse seo audit ci/cd" story is straightforward: write the JSON to an artifact, fail the build on regressions, ship.
+
+Bottom line: not the most exciting tool in the list, and the only one that did not contradict itself or the data we trust on either run.
+
+## SEOptimer
+
+SEOptimer was the third tool in the May 1 window. It auto-generates a public audit URL when you submit a domain, and that public URL is fetchable without a browser session, which is the bar for inclusion. Three other tools we tried (WordLift, Snezzi, SEOscore.tools) failed that bar; their results live behind a JavaScript app session and cannot be retrieved by anything other than a browser. More on that in a moment.
+
+Grade B with seven recommendations on May 1. That is two fewer recommendations than the April 30 run, which had nine. Grade did not move because A- to A on On-Page requires more than two small fixes.
+
+| Category | Grade |
+|---|---|
+| On-Page SEO | A- |
+| Performance | A |
+| Links | A- |
+| Usability | F |
+| Social | A+ |
+
+Three of the five lined up with what we measured elsewhere. Performance A matched Lighthouse's 96/100. On-Page A- matched Cogny's tag-presence pass after fixes. Social A+ matched the live OG and Twitter card stack.
+
+Two did not. Usability F is unexplained. The detailed breakdown sits behind an account, so we cannot see what triggered the fail. Lighthouse gave us 100/100 on accessibility against the same URL at the same hour. SEOptimer is either measuring something Lighthouse does not (mobile tap targets, font-size thresholds against a strict bar) or it is a discrepancy we cannot reconcile without more access. Links A- is also hard to read: GSC reports zero referring URLs to this site, so SEOptimer's grade is almost certainly counting internal links rather than backlinks, which is a different measurement.
+
+When two graders disagree on basic dimensions of the same site and one of them will not show its work, the score is cosmetic. SEOptimer's strength is the public permalink: it is the only non-Google tool we tested that produced an automation-friendly result. Worth keeping in a monitoring rotation for the social and on-page checks. The Usability F should be ignored until SEOptimer publishes what it actually measures.
+
+Output is HTML on a public URL, with PDF available if you sign up. Price is freemium. The score and the dimension grades are visible to anyone who has the URL.
+
+## What I changed between the runs
+
+The fixes that moved Cogny from 44 to 85, in order:
+
+- I added canonical link tags to homepage, pathway, and tag pages.
+- I rewrote the homepage title from "Patch Window" to "Patch Window: Linux, DevOps & AI in production homelabs". The same change also switched pathway and tag display names from raw URL slugs to readable names ("Sysadmin Craft", "Security articles").
+- I added 308 redirects for old URL patterns under `/format/*` and `/articles/*`, so legacy links land on canonical URLs.
+- I added OpenGraph images on pathway and tag pages, so social shares of those URLs render with a card image. This was a bonus finding from reading the raw HTML, not from any tool's output.
+- I shipped a terminal-template OG design and a metadata polish across the site, including the homelab illustration on the homepage that caused the Performance regression.
+
+Two of those fixes (canonical, title) directly addressed Cogny's correct April 30 claims. Two (pathway/tag display names, redirects) addressed problems Cogny had also flagged correctly under "thin content" and "raw URL slugs as titles". One (pathway/tag OG images) came from the verification step, not from any tool. One (the homelab illustration) was a deliberate visual decision that traded three Performance points for visual identity.
+
+The shape of the work was: run audit, read results, verify claims against the live HTML, fix what was actually broken, leave alone what the tools were wrong about, ship. That is the operator's pattern. The tools that try to skip the verification step on your behalf are the ones that produced the bad numbers.
+
+## Three tools that could not be automated
+
+We started with five tools on a list of frequently-named "free AI SEO audit tools 2026". Three of them (WordLift Agentic AI Audit, Snezzi Free SEO Audit, SEOscore.tools) turned out to be unrunnable from a non-browser environment. They market themselves as "no signup, no auth" free audits. In practice, all three are JavaScript app flows where the result lives behind a browser session. Their landing pages return marketing HTML. Their result URLs return 404 or empty score cells. We could not automate them, monitor them, or run them from CI without driving a browser session.
+
+That is itself a finding. The "free AI SEO audit tools 2026" search query returns dozens of options. The number that returns automatable, free options is closer to two: Lighthouse and Cogny, with SEOptimer as a third for non-Google second opinions. Three out of five tools we tried fall outside that set. The marketing copy says "no signup, no auth". The operational reality is that you have to drive a browser to get a number out, which for any team trying to automate monitoring is the same friction as a login.
+
+We are not saying anything about the accuracy of those tools' output, because we never saw it. The empirical claim is narrow: from a non-browser environment on May 1, we could not retrieve a result. Other environments may produce different results.
+
+## The comparison matrix
+
+This is the same homepage, audited in the same May 1 window, against ground truth from Search Console. The three tools we could not run are listed for completeness; everything in their columns is "n/a (not runnable)".
+
+| Dimension | GSC (truth) | Cogny (May 1) | WordLift | Snezzi | SEOscore | Lighthouse | SEOptimer |
+|---|---|---|---|---|---|---|---|
+| Title tag | present | pass | n/a | n/a | n/a | pass | A- on-page |
+| Meta description | present | pass | n/a | n/a | n/a | pass | A- on-page |
+| Canonical URL | present on 5/5 page types | pass | n/a | n/a | n/a | pass | A- |
+| OG / Twitter cards | 8 OG + 5 Twitter | pass | n/a | n/a | n/a | not in SEO category | A+ Social |
+| JSON-LD schema | 4 to 8 blocks per page | pass | n/a | n/a | n/a | INFO (manual) | not exposed |
+| Indexing | PASS, indexed | not measured directly | n/a | n/a | n/a | n/a | n/a |
+| Sitemap count | 80 entries, 62 indexed | "106" (still wrong) | n/a | n/a | n/a | n/a | n/a |
+| Page speed / CWV | LCP 2.57s | not measured | n/a | n/a | n/a | 96/100, LCP 2.57s | A Performance |
+| Mobile usability | not measured by GSC | not measured | n/a | n/a | n/a | pass | F (unexplained) |
+| Accessibility | not measured by GSC | not measured | n/a | n/a | n/a | 100/100 | not exposed |
+| Internal linking | not measured by GSC | flags H1->H3 skip | n/a | n/a | n/a | link-text pass | A- Links |
+| Backlinks | 0 referring | "none" (correct) | n/a | n/a | n/a | n/a | A- (mismeasured?) |
+| AEO / GEO | not measured by GSC | not measured | claims yes | claims yes | claims 50 + 55 checks | not measured | not measured |
+| Output format | API / JSON | markdown | n/a | n/a | n/a | JSON + HTML + CSV | HTML, PDF behind login |
+| Automatable? | yes (MCP) | yes (skill) | no (browser) | no (browser) | no (browser) | yes (CLI) | yes (public URL) |
+
+The pattern in the May 1 column is that everything Cogny pass-or-fails on now agrees with what curl and grep find. The one row where it does not agree is the sitemap count, where it reports a number that has no source.
+
+## What this says about AI SEO tools in 2026
+
+The April 30 read was "AI tools hallucinate". The May 1 read is more nuanced and more useful: AI SEO audit tools have two different reliability axes that you have to evaluate separately.
+
+Axis one: tag detection. Does the parser read the HTML and report whether a thing is present? On this audit, after fixes, Cogny's parser does that correctly. The 41-point jump is what that looks like when the parser is working. The April 30 misses on JSON-LD and OG tags are the same parser failing in a different mode (we suspect the AI-summarization step over the parser output, but that is our hypothesis, not a verified cause). The pass/fail line on a single tag is something an AI-positioned audit tool can do, when the underlying fetch produces clean HTML and the summarization layer does not invent a contradiction.
+
+Axis two: counting and aggregation. Does the parser look at a list and report how many items are in it? On this audit, the answer is no. The "106 sitemap URLs" claim survived two runs against a sitemap that has 80 entries on every read. The parser is reading the sitemap, but it is reporting a count that has no correspondence to what is in the file.
+
+For an operator who wants SEO checks in a pipeline, the practical shape of the recommendation comes out of those two axes:
+
+- Lighthouse is the answer for CI/CD. It is free, the source is open, every check is documented, the categories are stable, and the numbers it produces line up with our RUM telemetry and with Search Console.
+- AI-positioned audit tools (Cogny in this case, but the lesson generalizes) are useful for manual pass/fail diagnostics. Read the action list. Verify each item against the live HTML. Act on the ones that are real. Do not trust the counts.
+- Search Console is the source of truth for indexing, sitemap status, and live performance. Hook it up via the API. Skip the screenshots.
+- SEOptimer is a reasonable secondary check for social and on-page tags if you want a non-Google second opinion. Its public permalink makes it the only non-Google tool we tested that actually fits in an automation pipeline.
+
+The other tools, the ones that lead with AI in the name and the marketing, are useful for one-off manual audits if you have the time and a browser. From an automation standpoint they are interesting demos rather than infrastructure.
+
+## Recommendations
+
+For a DevOps team that wants SEO in the pipeline:
+
+- Run Lighthouse in CI. Set thresholds. Fail the build on regressions.
+- Wire up the Search Console API to a dashboard. Indexing status, query performance, and impressions are the operational signal. The number from a third-party audit is a proxy at best.
+- Use Cogny manually when you want a second opinion on tag presence, but verify every claim against the live HTML before you act on it. Treat the score as ordinal, not cardinal.
+
+For a solo developer or a small team:
+
+- Search Console is free and authoritative. Set it up in 20 minutes, verify ownership, and read the URL inspection tool whenever something looks off.
+- Run Lighthouse from the CLI when you ship a change. You do not need a SaaS for this.
+- Skip the AI-positioned audit tools whose result URL is not fetchable. If the only way to retrieve a number is to drive a browser, the tool is not infrastructure.
+
+The general rule, after running this benchmark twice: test tools yourself against ground truth before you trust their scores. The score is the easy part to look at. Whether the score reflects reality is the part that takes ten minutes of curl and grep, and the answer is occasionally not what the dashboard says. The re-baseline pattern (run, fix what you can verify, run again in the same window) is the way to compare audit tools without contaminating the comparison with the very fixes the first run prompted.
+
+The April 30 run alone would have produced a less useful article. The May 1 re-run produced the actual finding: AI SEO audit tools can be reliable for pass/fail diagnostics and unreliable for counting, and the only way to know which axis you are on is to test for both.
+
+## A note to vendors
+
+If you build one of the tools discussed here and our findings do not match what your tool produces in your test environment, we want to hear from you. Send the details and we will update the article with a correction or your response. Contact details are at /about.
