@@ -40,6 +40,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     alternates: { canonical: url },
     openGraph: { title: displayName, description, type: 'website', url },
+    twitter: {
+      card: 'summary_large_image',
+      creator: '@DanneGsson',
+      title: displayName,
+      description,
+    },
   }
 }
 

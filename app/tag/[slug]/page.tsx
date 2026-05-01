@@ -31,6 +31,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: 'website',
       url,
     },
+    twitter: {
+      card: 'summary_large_image',
+      creator: '@DanneGsson',
+      title: `${displayName} articles`,
+      description: `Articles tagged ${displayName} on Patch Window.`,
+    },
   }
 }
 
