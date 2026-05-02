@@ -1,7 +1,11 @@
+'use client'
+
 import Link from 'next/link'
+import { useConsent } from '@/lib/consent'
 
 export default function SiteFooter() {
   const year = new Date().getFullYear()
+  const { openBanner } = useConsent()
 
   return (
     <footer className="site-footer">
@@ -11,7 +15,7 @@ export default function SiteFooter() {
           <a href='https://ko-fi.com/M4M41XYZRX' target='_blank' rel='noopener noreferrer' data-umami-event="kofi-click">
             <img height='36' width={143} style={{ border: '0px', height: '36px' }} src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' alt='Buy Me a Coffee at ko-fi.com' />
           </a>
-          <nav aria-label="Footer navigation" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <nav aria-label="Footer navigation" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <Link href="/about" className="nav-link" style={{ fontSize: '0.8125rem' }} data-umami-event="nav-click" data-umami-event-item="about">
               About
             </Link>
@@ -24,6 +28,23 @@ export default function SiteFooter() {
             <a href="mailto:daniel@serverdigital.net" className="nav-link" style={{ fontSize: '0.8125rem' }} data-umami-event="contact-click">
               Contact
             </a>
+            <button
+              type="button"
+              onClick={openBanner}
+              aria-label="Open cookie settings"
+              className="nav-link"
+              style={{
+                fontSize: '0.8125rem',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              Cookie settings
+            </button>
           </nav>
         </div>
       </div>

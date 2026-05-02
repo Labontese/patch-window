@@ -1,5 +1,8 @@
+'use client'
+
 import Link from 'next/link'
 import { SITE_STATS } from '@/lib/site-config'
+import { useConsent } from '@/lib/consent'
 
 /**
  * InnerFooter — V2-stilad footer för innersidor.
@@ -11,6 +14,7 @@ import { SITE_STATS } from '@/lib/site-config'
  */
 export default function InnerFooter() {
   const year = new Date().getFullYear()
+  const { openBanner } = useConsent()
 
   return (
     <footer className="v2-footer" role="contentinfo">
@@ -33,6 +37,25 @@ export default function InnerFooter() {
         <a href="mailto:daniel@serverdigital.net" data-umami-event="contact-click">
           Contact
         </a>
+        {' · '}
+        <button
+          type="button"
+          onClick={openBanner}
+          aria-label="Open cookie settings"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            color: 'inherit',
+            textDecoration: 'underline',
+            textUnderlineOffset: '2px',
+          }}
+        >
+          Cookie settings
+        </button>
       </span>
 
       {/* Höger: patch-version + Ko-fi */}
