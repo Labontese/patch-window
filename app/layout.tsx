@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next'
-import Script from 'next/script'
 import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { safeJsonLd } from '@/lib/jsonld'
 import ThemeToggle from '@/components/ThemeToggle'
 import TweaksPanel from '@/components/TweaksPanel'
 import ReadingProgress from '@/components/ReadingProgress'
 import EasterEgg from '@/components/EasterEgg'
+import ConsentBanner from '@/components/ConsentBanner'
+import UmamiScript from '@/components/UmamiScript'
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -131,11 +132,8 @@ export default function RootLayout({
         <TweaksPanel />
         <EasterEgg />
         {children}
-        <Script
-          strategy="afterInteractive"
-          src="https://analytics.holmdigital.se/script.js"
-          data-website-id="2e94eb8f-6fe9-47d6-b1af-a8485f65d4ba"
-        />
+        <UmamiScript />
+        <ConsentBanner />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
