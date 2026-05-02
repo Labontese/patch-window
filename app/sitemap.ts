@@ -17,6 +17,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/about`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
     { url: `${BASE}/about/daniel`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
     { url: `${BASE}/corrections`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${BASE}/privacy`, lastModified: new Date('2026-05-02'), changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${BASE}/cookies`, lastModified: new Date('2026-05-02'), changeFrequency: 'yearly', priority: 0.3 },
   ]
 
   const articleRoutes: MetadataRoute.Sitemap = articles.map((a) => ({
