@@ -1,0 +1,109 @@
+---
+title: "grill-me for AI agent teams: using it as a delegation gate in 2026"
+format: deep-dive
+slug: grill-me-ai-agents-multi-agent-workflow
+pathway: aiops-observability
+tags:
+  - ai-agents
+  - workflow
+  - prompt-engineering
+  - grill-me
+publishedAt: 2026-05-05T10:00:00+02:00
+excerpt: "grill-me was designed as rubber ducking for solo devs. I use it as a gate that blocks briefs from reaching downstream agents until the vague parts are gone."
+draft: false
+lang: en
+---
+
+The problem with a multi-agent team is not that the agents are bad at their jobs. It is that a vague brief reaches them and they execute it precisely. A fuzzy input produces a confident, well-structured, completely wrong output.
+
+grill-me is an interview technique by Matt Pocock (aihero.dev). The AI asks targeted questions one at a time to surface hidden assumptions before you start building -- structured rubber ducking with a summary at the end. It was designed for solo developers thinking through their code. I adapted it for a different problem.
+
+---
+
+## The gap it fills
+
+When I work alone and I am about to build something, the risk is that I start on the wrong thing. grill-me surfaces that before I write a line.
+
+In a multi-agent setup, the risk is different. I am not the one executing the work. An agent is. If I hand off a vague brief, the agent fills in the blanks with its own assumptions and produces something coherent that does not match what I wanted. I find out when I read the output, not before.
+
+The fix is to make the brief tight before it leaves my hands. grill-me does that. The question is when to run it.
+
+Running it on every brief would be annoying and wasteful. Most briefs are fine. So I defined three specific triggers. If any of them are present, grill-me runs before anything gets delegated.
+
+---
+
+## The three triggers
+
+**Trigger 1: a product or feature without a named audience.**
+
+"We should build a plain-language editor" is not a brief. Who is it for? A 55-year-old civil servant writing policy documents, a junior developer writing error messages, or a copywriter trying to hit a reading level? The tool is different in each case. If I cannot name the audience, I do not know what I am building.
+
+**Trigger 2: "we should" statements without a deadline or an inciting problem.**
+
+"We should do something about our SEO" or "we should write more documentation" -- these are observations, not tasks. They float in the backlog forever because they have no start condition. A "we should" without a specific problem that made me say it, or without a date by which it matters, is not ready to delegate.
+
+**Trigger 3: large scope words without a first deliverable.**
+
+"Build a platform." "Run a campaign." "Redesign the onboarding." Each of these could mean three days of work or three months. An agent given "build a platform" will make a dozen scope decisions I did not authorize. If I cannot name what done looks like for the first two days, the brief is not ready.
+
+---
+
+## Why I run it in the main chat, not through an agent
+
+I considered creating a dedicated interview agent. I did not, for one reason: the interview is a conversation, not a task.
+
+The value of grill-me comes from the back-and-forth. A question reveals something, my answer shifts what the next question should be, and the final summary reflects the full exchange. That loop belongs in main chat, where it affects what I do next in real time.
+
+If I route it through an agent, the output goes into a task queue. The agent returns a summary. I read it, synthesize it, and then write the actual brief. That is two steps where one works. The interview is for me, not for the agent.
+
+---
+
+## The artifact rule
+
+Every grill-me session produces a file. No exceptions.
+
+The reason is `/compact`. When Claude Code compresses conversation history, inline notes from a session disappear. The conclusions from a 20-minute interview are gone. A file in Team Inbox is not gone.
+
+The file is short. Five to ten lines covering:
+- Who the audience is (named, specific)
+- What problem the product or feature solves for them
+- What the first deliverable is and when it is due
+- Any questions still open
+
+That file gets referenced by name in the delegation prompt to the downstream agent. "Read `team-inbox/plain-language-editor-brief.md` before starting" is a better handoff than a paragraph of inline context that may or may not survive the next compaction.
+
+---
+
+## What this actually changes
+
+The outcome is not that every brief is perfect. It is that the gap between what I hand off and what the agent produces gets smaller.
+
+Before the gate existed, I noticed a pattern: I would give a brief that felt clear to me, an agent would produce something technically correct, and I would spend time revising it in a direction the agent could not have predicted. The brief had hidden a decision I had not made.
+
+grill-me forces that decision before the agent starts. The interview takes five minutes. Revising an agent's output that went in the wrong direction takes longer.
+
+The triggers are the part that makes it sustainable. I do not run the interview because I think I should. It runs when specific conditions are met. That removes the judgment call about whether this particular brief is clear enough -- the conditions either match or they do not.
+
+---
+
+## Setting it up
+
+The triggers live in the team lead's instructions. Any time I give an input that matches one of the three patterns, the session switches into interview mode before doing anything else.
+
+The interview follows Matt Pocock's approach: one question at a time, targeted, no compound questions. The session ends with a structured summary. I write the summary to a file and use the file path in the next delegation.
+
+The grill-me skill runs in main chat. The artifact goes to Team Inbox. The downstream agent reads the artifact. That is the full loop.
+
+---
+
+## The thing it does not solve
+
+grill-me is good at surfacing the assumptions inside a brief. It is not good at telling you whether the brief is the right thing to work on.
+
+If I come in with a clearly defined audience, a specific problem, and a first deliverable -- but it is the wrong problem -- the interview will not catch that. Prioritization is a separate question. The gate only checks whether the brief is specific enough to delegate safely. Whether it should be in the queue at all is a decision I make before I open a chat.
+
+That separation is intentional. One gate, one job. A gate that tries to evaluate both specificity and priority would need to know too much about the overall strategy to be useful as a check on any individual brief.
+
+---
+
+*grill-me is a technique by Matt Pocock at [aihero.dev](https://aihero.dev).*
