@@ -50,6 +50,7 @@ export interface ArticleFrontmatter {
   publishedAt: string
   updatedAt?: string
   excerpt: string
+  image?: string
   related?: Array<{ format: Format; slug: string }>
   draft?: boolean
   lang?: string
