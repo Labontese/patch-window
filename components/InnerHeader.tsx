@@ -30,6 +30,7 @@ export default function InnerHeader() {
             <li><a href="/brief" data-umami-event="nav-click" data-umami-event-item="briefs">Briefs</a></li>
             <li><a href="/feed.xml" aria-label="RSS feed">RSS</a></li>
             <li><a href="/about" data-umami-event="nav-click" data-umami-event-item="about">About</a></li>
+            <li><a href="/tools" data-umami-event="nav-click" data-umami-event-item="tools">Tools</a></li>
           </ul>
         </nav>
       </div>

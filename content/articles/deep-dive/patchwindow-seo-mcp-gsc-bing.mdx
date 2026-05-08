@@ -1,0 +1,251 @@
+---
+title: "seo-mcp: Google Search Console and Bing tools for your AI assistant"
+format: deep-dive
+slug: patchwindow-seo-mcp-gsc-bing
+pathway: aiops-observability
+tags:
+  - seo
+  - mcp
+  - google-search-console
+  - bing
+  - open-source
+  - typescript
+  - ai-tools
+publishedAt: 2026-05-08T10:00:00+02:00
+excerpt: "I built a small MCP server that connects an AI assistant to live data from Google Search Console and Bing Webmaster Tools. Here is why I built it instead of using what existed, and what each of the ten tools actually does."
+draft: false
+lang: en
+---
+
+I've been using `search-console-mcp` for a while. It covers a lot — GSC, Bing, GA4, 40-odd tools, multi-account handling. It's a solid package and I kept reaching for it whenever I wanted SEO data in Claude without switching tabs.
+
+The problem is I don't own the code. When something breaks, I wait. When I want to add a tool or change how output is formatted, I can't. And the GA4 dependency pulls in an entire authentication surface I don't need for what I actually do, which is: check rankings, find quick wins, look at crawl health, and figure out why traffic dropped.
+
+I also wanted Bing keyword research as a first-class tool. That's data that doesn't exist in Google Search Console at all — actual search volume numbers per keyword, not click and impression counts from queries your site already ranks for. Bing's API has `GetKeyword` and `GetRelatedKeywords`. Nothing in the GSC ecosystem gives you that.
+
+So I built `@patchwindow/seo-mcp`. Ten tools, TypeScript, MIT license. It's a narrow package that does what I need and nothing else.
+
+## Why an MCP server for SEO
+
+The core idea behind MCP (Model Context Protocol) is that your AI assistant can call external tools and get back structured data, rather than you copy-pasting things from dashboards. With an MCP server wired in, I can ask "which queries are ranking between 5 and 15 for the last 30 days?" and get an actual table, not a screenshot.
+
+For SEO specifically, the usual workflow is: open Search Console, set the date range, set the dimensions, filter, export CSV, paste into a spreadsheet, ask a question. Or just squint at the interface. With MCP, that middle section disappears. The AI calls the tool, the data comes back, and you're already in the analysis.
+
+The alternative is giving an AI assistant a screenshot and hoping it reads the chart correctly. That works sometimes. It's not the same as giving it actual numbers.
+
+## The ten tools
+
+### GSC: `gsc_search_performance`
+
+This is the core Search Analytics query. It returns clicks, impressions, CTR, and average position. You can group by any combination of query, page, country, device, and date. You can filter by query string, exact page URL, device type, or country code.
+
+In practice, most of what I do with SEO data starts here. What's ranking, for what queries, on which pages, in which countries.
+
+Prompt examples:
+
+> Show me the top 50 queries by clicks for the last 28 days
+
+> Show me the top pages by impressions for the US over the last 60 days, grouped by page
+
+> What are the desktop vs mobile click counts for the past 30 days?
+
+### GSC: `gsc_striking_distance`
+
+This one runs a Search Analytics query and filters it to queries ranking between position 4 and 20 — the zone where a push up the page has the highest expected return on clicks, because you're already visible but not capturing much traffic.
+
+The filter defaults are configurable: min and max position, minimum impression threshold to exclude noise, and a row limit. Results come back sorted by impressions descending, so the highest-volume near-miss queries are at the top.
+
+Prompt examples:
+
+> Find my striking distance queries for the last 90 days
+
+> What queries am I ranking between positions 8 and 15 with more than 50 impressions per month?
+
+### GSC: `gsc_traffic_drop`
+
+Compares two date ranges — a current period and a previous period — and returns the pages or queries with the biggest click decreases. The drop threshold is configurable (default: 20%). A minimum clicks filter removes low-traffic noise from the results.
+
+This is the one I reach for when something looks wrong. Algorithm updates, technical problems, content decay — they all show up here first as pages whose click count fell between two periods.
+
+Prompt examples:
+
+> Compare the last 30 days to the prior 30 days and show me which pages lost the most clicks
+
+> Did we have any queries with a drop of more than 30% between January and February?
+
+> Compare last week to the same week last year and show query-level drops
+
+### GSC: `gsc_brand_nonbrand`
+
+Splits all search traffic into branded and non-branded segments. You pass in your brand terms (case-insensitive), and the tool sorts every query into one bucket or the other. Each segment gets aggregated clicks, impressions, average CTR, and average position. The tool also surfaces the top 10 queries in each segment.
+
+This matters because brand and non-brand traffic behave completely differently. Branded queries are mostly navigational — people who already know you. Non-branded queries are where SEO work actually shows up. Mixing them produces a number that doesn't tell you much.
+
+Prompt examples:
+
+> Split our search traffic for Q1 into brand vs non-brand. Brand terms are "patchwindow" and "patch window"
+
+> What percentage of our clicks come from branded queries this month?
+
+### GSC: `gsc_url_inspection`
+
+Wraps the GSC URL Inspection API. For any URL, it returns: indexing verdict, last crawl date, canonical URL (what Google thinks the canonical is vs. what you declared), rich results eligibility, and mobile usability status.
+
+I use this when a page isn't ranking where I'd expect it to, or when I need to verify that a page I just published has been indexed.
+
+Prompt examples:
+
+> Check the indexing status of https://patchwindow.serverdigital.net/articles/deep-dive/k3s-on-proxmox-production-lessons
+
+> Is this page indexed and does Google see the canonical I declared?
+
+### GSC: `gsc_sitemap_list`
+
+Lists all sitemaps submitted to Google Search Console for a property. Each sitemap gets: URL count submitted, URL count indexed, error count, warning count, and last submitted date.
+
+Quick way to verify that sitemaps are in good shape and that the indexed count isn't unexpectedly low compared to submitted.
+
+Prompt examples:
+
+> Show me the status of all sitemaps for my site
+
+> How many URLs are indexed vs submitted across my sitemaps?
+
+### Bing: `bing_keyword_research`
+
+This one has no equivalent in the GSC toolset. It calls Bing's `GetKeyword` endpoint to return the monthly impression count (exact match and broad match) for a keyword, including a month-by-month breakdown. It then calls `GetRelatedKeywords` and returns the top 20 related terms sorted by volume.
+
+The numbers are Bing's own search volume estimates — not the same as Google search volume, but they correlate reasonably and they're the only keyword volume data available in any of Bing's or Google's webmaster APIs without paying for a third-party tool.
+
+Prompt examples:
+
+> What's the search volume for "kubernetes homelab" on Bing?
+
+> Give me related keywords and their volumes for "mcp server"
+
+> What's trending around "proxmox backup" — show me the monthly breakdown for the last 12 months
+
+### Bing: `bing_crawl_health`
+
+Returns crawl statistics from Bing Webmaster Tools: total URLs crawled, success count, error count broken down by type (not found/4xx, network failures, timeouts, DNS failures), redirect count, and blocked URLs. If you ask for issues (default: yes), it also returns a table of specific problem URLs with their issue type, HTTP status code, and crawl time.
+
+One thing Bing surfaces that Google doesn't directly expose via API: whether the root URL of your site returned an error. A root error means Bing cannot crawl your site at all — that flag shows up explicitly in the stats output.
+
+Prompt examples:
+
+> What's the crawl health of my site on Bing?
+
+> Show me all crawl issues Bing is seeing, particularly any 4xx errors
+
+### Bing: `bing_url_inspection`
+
+Checks a URL's status in Bing Webmaster Tools. Returns: HTTP status code, indexed (yes/no), blocked (yes/no), blocked by robots.txt (yes/no), last crawl date, page title as Bing sees it, content length, internal link count, external link count, redirect target (if any), and mobile status.
+
+The dual inspection (Google via `gsc_url_inspection` + Bing via `bing_url_inspection`) is how you find engine-specific indexing discrepancies. A page indexed on Google but not on Bing usually has a crawl-level explanation.
+
+Prompt examples:
+
+> Is this URL indexed by Bing? https://patchwindow.serverdigital.net/articles/deep-dive/holmdigital-engine-wcag-compliance-tool
+
+> Check the Bing status for my homepage — is it blocked, indexed, when did Bing last crawl it?
+
+### Bing: `bing_sitemap_list`
+
+Lists all sitemaps registered in Bing Webmaster Tools. Each feed gets: URL submitted, type (sitemap or feed), status, URL count, indexed URL count, error and warning counts, submission date, last crawl date, and file size.
+
+Bing indexes sitemaps separately from Google. A sitemap that's healthy on one can have errors on the other. Worth checking both.
+
+Prompt examples:
+
+> Show me all sitemaps in Bing Webmaster Tools and their indexing status
+
+> How many URLs has Bing indexed from my sitemap compared to what I submitted?
+
+## Installation and setup
+
+```bash
+npm install -g @patchwindow/seo-mcp
+```
+
+Or skip the global install and use npx directly in the config.
+
+### Authentication
+
+**Google Search Console** requires OAuth2. Service accounts do not work — Google actively blocks them for Search Console, so you need user credentials. One-time setup:
+
+1. Create a Google Cloud project and enable the Search Console API
+2. Create an OAuth 2.0 Client ID (Web application type)
+3. Add `http://localhost:3847/callback` as an authorized redirect URI
+4. Set the credentials and run the auth command:
+
+```bash
+export GSC_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+export GSC_CLIENT_SECRET="your-client-secret"
+
+npx @patchwindow/seo-mcp auth gsc
+```
+
+A browser window opens for Google login. After you approve, the token saves to `~/.seo-mcp/gsc-token.json` and refreshes automatically from that point.
+
+**Bing Webmaster Tools** uses a plain API key. Go to Bing Webmaster Tools → Settings → API Access, generate a key, done. No OAuth.
+
+### Wiring it into Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "seo": {
+      "command": "npx",
+      "args": ["@patchwindow/seo-mcp"],
+      "env": {
+        "BING_WEBMASTER_API_KEY": "your-bing-api-key",
+        "GSC_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GSC_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+Same structure for Cursor and Windsurf — the config key differs (`mcp.json`) but the shape is identical.
+
+### Optional: set default sites
+
+Create `~/.seo-mcp/config.json` so you don't have to pass `site_url` on every tool call:
+
+```json
+{
+  "gsc": {
+    "default_site": "sc-domain:example.com"
+  },
+  "bing": {
+    "default_site": "https://example.com/"
+  }
+}
+```
+
+The GSC site URL format is either `sc-domain:example.com` (domain property) or `https://example.com/` (URL prefix property). Check your property type in Search Console — they are different things and passing the wrong format returns no data.
+
+## What I actually use it for
+
+The workflow that made the telemetry article possible was exactly this: asking about performance, getting back actual numbers, then writing about what those numbers said. For SEO work the same applies — I'm not taking screenshots of dashboards and describing them. I'm getting the data and working with it directly.
+
+Striking distance queries are the thing I check most often. Every 4–6 weeks I run a fresh analysis, look at what's ranking between 5 and 20 with meaningful impressions, and see which of those have supporting content that could be improved. That's where most of the incremental ranking movement comes from on a site this size.
+
+Traffic drop analysis runs after any significant change — a redesign, a redirect restructure, a batch of new pages going live. The comparison is between the 30 days before and the 30 days after. If something fell, I want to know which page and whether it correlates with a specific change.
+
+Bing keyword research is how I approach new articles. I use it to get volume estimates and related terms before I write, rather than after. Google doesn't give you that data from GSC — you only see what you already rank for. Bing's `GetRelatedKeywords` is a rough but useful proxy for what people search for around a topic.
+
+## What's missing
+
+There are gaps. The GSC API doesn't expose Core Web Vitals (those come from the CrUX API, which is a separate system), link data (entirely absent from the GSC API), or bulk index coverage. Those are API-level limitations, not implementation choices — there's nothing to call.
+
+What's missing that *could* be built: a cross-engine comparison tool that runs the same query against both GSC and Bing and surfaces discrepancies, a content decay detector that flags pages trending downward over a 60 or 90-day window, and batch URL inspection for both engines. Those are on the list.
+
+The current version (0.1.0) is the ten tools I needed immediately. The roadmap isn't a features list — it's the next real problem I hit while using the thing.
+
+## Source
+
+The project is on GitHub at [github.com/patchwindow/seo-mcp](https://github.com/patchwindow/seo-mcp). MIT license. Node 20+. Contributions welcome, especially around the Bing side — there's a lot of API surface there that's not covered yet.
+
+If you find a bug or want a tool that isn't there, open an issue. If the issue describes something real and specific, it'll get built.

@@ -42,6 +42,9 @@ export default function SiteHeader() {
           <Link href="/about" className="nav-link" data-umami-event="nav-click" data-umami-event-item="about">
             About
           </Link>
+          <Link href="/tools" className="nav-link" data-umami-event="nav-click" data-umami-event-item="tools">
+            Tools
+          </Link>
         </nav>
       </div>
     </header>
