@@ -6,8 +6,8 @@ export interface NowNote {
 }
 
 export const NOW_NOTE: NowNote = {
-  line1: 'Skriver om Traefik-routing och container-nätverk.',
-  line2: 'Patch Window V2 just skickad — nu börjar underhållet.',
-  line3: 'Stockholm, april 2026.',
-  updated: '2026-04-19',
+  line1: 'Building open-source SEO tools under the patchwindow GitHub org.',
+  line2: 'Patch Window V2 shipped — now in maintenance mode.',
+  line3: 'Stockholm, May 2026.',
+  updated: '2026-05-08',
 }

@@ -17,6 +17,8 @@ export default function TerminalHeader({ articleCount }: Props) {
 
       <h1 className="v2-head__title">Patch Window</h1>
 
+      <p className="v2-head__description">Technical writing for sysadmins, platform engineers, and homelab operators. Deep dives, hot takes, and briefs on Linux, infrastructure, and the systems that keep things running.</p>
+
       <p className="v2-head__meta">
         {SITE_STATS.currentPatch} &nbsp;·&nbsp; {articleCount} patches &nbsp;·&nbsp; uptime {uptime}d
       </p>
@@ -28,6 +30,7 @@ export default function TerminalHeader({ articleCount }: Props) {
           <li><a href="/brief">Briefs</a></li>
           <li><a href="/feed.xml" aria-label="RSS feed">RSS</a></li>
           <li><a href="/about">About</a></li>
+          <li><a href="/tools">Tools</a></li>
         </ul>
       </nav>
     </header>
