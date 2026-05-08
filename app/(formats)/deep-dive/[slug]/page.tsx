@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { getArticleByFormatAndSlug, getArticlesByFormat } from '@/lib/articles'
 import InnerHeader from '@/components/InnerHeader'
 import InnerFooter from '@/components/InnerFooter'
@@ -103,14 +104,14 @@ export default async function DeepDivePage({ params }: Props) {
               <p style={{ fontWeight: 700, marginBottom: '0.25rem', color: 'var(--color-text)' }}>
                 Pathway
               </p>
-              <a
+              <Link
                 href={`/pathway/${meta.pathway}`}
                 className="pathway-badge"
                 data-umami-event="pathway-click"
                 data-umami-event-pathway={meta.pathway}
               >
                 {meta.pathway}
-              </a>
+              </Link>
             </div>
             {meta.tags.length > 0 && (
               <div style={{ marginBottom: '1.5rem' }}>
@@ -119,7 +120,7 @@ export default async function DeepDivePage({ params }: Props) {
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                   {meta.tags.map((tag) => (
-                    <a
+                    <Link
                       key={tag}
                       href={`/tag/${tag}`}
                       className="tag-pill"
@@ -127,7 +128,7 @@ export default async function DeepDivePage({ params }: Props) {
                       data-umami-event-tag={tag}
                     >
                       {tag}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
