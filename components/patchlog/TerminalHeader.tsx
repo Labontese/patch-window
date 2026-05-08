@@ -1,4 +1,4 @@
-import type { ArticleMeta } from '@/lib/types'
+import Link from 'next/link'
 import { SITE_STATS, getSiteUptimeDays } from '@/lib/site-config'
 
 interface Props {
@@ -15,7 +15,9 @@ export default function TerminalHeader({ articleCount }: Props) {
         <span className="v2-head__cursor" aria-hidden="true" />
       </p>
 
-      <h1 className="v2-head__title">Patch Window</h1>
+      <h1 className="v2-head__title">
+        <Link href="/" style={{ color: 'inherit', textDecoration: 'none' }}>Patch Window</Link>
+      </h1>
 
       <p className="v2-head__description">Technical writing for sysadmins, platform engineers, and homelab operators. Deep dives, hot takes, and briefs on Linux, infrastructure, and the systems that keep things running.</p>
 
@@ -25,12 +27,12 @@ export default function TerminalHeader({ articleCount }: Props) {
 
       <nav aria-label="Site navigation">
         <ul className="v2-head__nav">
-          <li><a href="/deep-dive">Deep Dives</a></li>
-          <li><a href="/hot-take">Hot Takes</a></li>
-          <li><a href="/brief">Briefs</a></li>
+          <li><Link href="/deep-dive">Deep Dives</Link></li>
+          <li><Link href="/hot-take">Hot Takes</Link></li>
+          <li><Link href="/brief">Briefs</Link></li>
           <li><a href="/feed.xml" aria-label="RSS feed">RSS</a></li>
-          <li><a href="/about">About</a></li>
-          <li><a href="/tools">Tools</a></li>
+          <li><Link href="/about">About</Link></li>
+          <li><Link href="/tools">Tools</Link></li>
         </ul>
       </nav>
     </header>

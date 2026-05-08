@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { SITE_STATS, getSiteUptimeDays } from '@/lib/site-config'
 import { getAllArticles } from '@/lib/articles'
 
@@ -14,9 +15,9 @@ export default function InnerHeader() {
         </p>
 
         <p className="v2-head__title">
-          <a href="/" aria-label="Patch Window, go to homepage" style={{ color: 'inherit', textDecoration: 'none' }}>
+          <Link href="/" aria-label="Patch Window, go to homepage" style={{ color: 'inherit', textDecoration: 'none' }}>
             Patch Window
-          </a>
+          </Link>
         </p>
 
         <p className="v2-head__meta">
@@ -25,12 +26,12 @@ export default function InnerHeader() {
 
         <nav aria-label="Site navigation">
           <ul className="v2-head__nav">
-            <li><a href="/deep-dive" data-umami-event="nav-click" data-umami-event-item="deep-dives">Deep Dives</a></li>
-            <li><a href="/hot-take" data-umami-event="nav-click" data-umami-event-item="hot-takes">Hot Takes</a></li>
-            <li><a href="/brief" data-umami-event="nav-click" data-umami-event-item="briefs">Briefs</a></li>
+            <li><Link href="/deep-dive" data-umami-event="nav-click" data-umami-event-item="deep-dives">Deep Dives</Link></li>
+            <li><Link href="/hot-take" data-umami-event="nav-click" data-umami-event-item="hot-takes">Hot Takes</Link></li>
+            <li><Link href="/brief" data-umami-event="nav-click" data-umami-event-item="briefs">Briefs</Link></li>
             <li><a href="/feed.xml" aria-label="RSS feed">RSS</a></li>
-            <li><a href="/about" data-umami-event="nav-click" data-umami-event-item="about">About</a></li>
-            <li><a href="/tools" data-umami-event="nav-click" data-umami-event-item="tools">Tools</a></li>
+            <li><Link href="/about" data-umami-event="nav-click" data-umami-event-item="about">About</Link></li>
+            <li><Link href="/tools" data-umami-event="nav-click" data-umami-event-item="tools">Tools</Link></li>
           </ul>
         </nav>
       </div>
