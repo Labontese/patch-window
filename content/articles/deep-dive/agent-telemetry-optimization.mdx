@@ -80,7 +80,7 @@ That is the correct order. Telemetry verifies hypotheses, it does not generate t
 
 Three open gaps: cache write vs. read ratio per agent (showing whether caching amortizes across calls), input/output ratio at agent granularity (the data exists in the JSONL files, needs a derived gauge), and model escalation frequency (how often a Sonnet agent runs on Opus for a specific task -- not tracked, but it matters for cost modeling).
 
-The stack does not know what work was done, only how many tokens were used. Correlating cost with task complexity requires task metadata the JSONL files do not contain. That is the next layer.
+The stack does not know what work was done, only how many tokens were used. Correlating cost with task complexity requires task metadata the JSONL files do not contain. That is the next layer. The upstream problem — ensuring that the work being measured was well-defined to begin with — is a separate concern covered in [using grill-me as a delegation gate](/deep-dive/grill-me-ai-agents-multi-agent-workflow).
 
 ---
 

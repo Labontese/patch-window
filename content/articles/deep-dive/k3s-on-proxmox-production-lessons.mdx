@@ -143,7 +143,7 @@ After this change, Traefik issued certificates without needing inbound port 80 o
 
 ## What held up fine
 
-Wazuh SIEM integration worked without issues. I deployed Wazuh agents on the K3s VMs and configured them to forward to the Wazuh manager on VLAN 20 (security). The agents see pod-level process activity, which is useful for detecting unexpected processes inside containers.
+Wazuh SIEM integration worked without issues. I deployed Wazuh agents on the K3s VMs and configured them to forward to the Wazuh manager on VLAN 20 (security). [Wazuh 5.0](/brief/wazuh-5-released) rewrites the agent communication layer, so plan for a protocol upgrade before migrating agents running on K3s nodes. The agents see pod-level process activity, which is useful for detecting unexpected processes inside containers.
 
 K3s upgrades via `k3sup upgrade` went cleanly across all three versions I tested (v1.31.1 to v1.31.4 to v1.32.2). The rolling upgrade process did what it said it would.
 

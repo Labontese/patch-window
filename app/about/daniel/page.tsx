@@ -24,6 +24,10 @@ const personJsonLd = {
   email: 'daniel@serverdigital.net',
   jobTitle: 'Systems administrator and technical writer',
   knowsAbout: ['Linux', 'DevOps', 'AIOps', 'Networking', 'Homelabs', 'Containers'],
+  sameAs: [
+    'https://github.com/Labontese',
+    'https://twitter.com/DanneGsson',
+  ],
 }
 
 export default function DanielPage() {
