@@ -41,7 +41,7 @@ const tools: Tool[] = [
     name: 'patch-window-mcp',
     description:
       'MCP server that exposes Patch Window articles as structured context for Claude and other LLM clients. Query by format, tag, or slug directly from your AI assistant.',
-    github: 'https://github.com/patchwindow/patch-window-mcp',
+    github: 'https://github.com/patchwindow/patchwindow-mcp',
     npm: 'https://www.npmjs.com/package/patch-window-mcp',
     tag: 'MCP server',
   },
