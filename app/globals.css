@@ -690,6 +690,7 @@ code {
 }
 
 .page-header__description {
+  font-family: var(--font-mono);
   color: var(--color-text-muted);
   font-size: 1rem;
   max-width: 60ch;
@@ -750,6 +751,7 @@ code {
 }
 
 .tool-card__description {
+  font-family: var(--font-mono);
   font-size: 0.9375rem;
   color: var(--color-text-muted);
   margin: 0 0 0.75rem;
