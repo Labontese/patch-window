@@ -68,7 +68,7 @@ export default async function HotTakePage({ params }: Props) {
     publisher: {
       '@type': 'Organization',
       name: 'Patch Window',
-      logo: { '@type': 'ImageObject', url: 'https://patchwindow.serverdigital.net/logo/glyph-window.svg' },
+      logo: { '@type': 'ImageObject', url: 'https://patchwindow.serverdigital.net/logo/logo.png', width: 600, height: 60 },
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
