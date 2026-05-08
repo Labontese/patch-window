@@ -102,6 +102,49 @@ export function getArticleByFormatAndSlug(format: Format, slug: string): Article
   }
 }
 
+export interface ArticleWithContent extends ArticleMeta {
+  content: string
+}
+
+export function getAllArticlesWithContent(): ArticleWithContent[] {
+  return FORMATS.flatMap((format) => {
+    const dir = path.join(CONTENT_DIR, format)
+    if (!fs.existsSync(dir)) return []
+
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.mdx'))
+
+    return files
+      .map((file) => {
+        const filePath = path.join(dir, file)
+        const raw = fs.readFileSync(filePath, 'utf-8')
+        const { data, content } = matter(raw)
+
+        validateFrontmatter(data, filePath)
+
+        if (data.draft === true) return null
+
+        const meta: ArticleMeta = {
+          title: data.title as string,
+          format: data.format as Format,
+          slug: data.slug as string,
+          pathway: data.pathway as (typeof PATHWAYS)[number],
+          tags: Array.isArray(data.tags) ? data.tags : [],
+          publishedAt: data.publishedAt as string,
+          updatedAt: data.updatedAt as string | undefined,
+          excerpt: data.excerpt as string,
+          image: data.image as string | undefined,
+          related: data.related,
+          draft: data.draft,
+          lang: data.lang as string | undefined,
+          readingTime: estimateReadingTime(content),
+        }
+
+        return { ...meta, content: content.trim() }
+      })
+      .filter(Boolean) as ArticleWithContent[]
+  }).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+}
+
 export function getArticlesByTag(tag: string): ArticleMeta[] {
   return getAllArticles().filter((a) => a.tags.includes(tag))
 }
