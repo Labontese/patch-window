@@ -1,0 +1,61 @@
+---
+title: "OpenClaw: self-hosted AI gateway, real security problems in the plugin ecosystem"
+format: brief
+slug: openclaw-selfhosted-ai-gateway
+pathway: sysadmin-craft
+tags:
+  - selfhosted
+  - ai
+  - security
+  - open-source
+  - tools
+  - linux
+publishedAt: 2026-05-08T10:00:00+02:00
+excerpt: "OpenClaw has more GitHub stars than React and connects your AI model to 50-plus messaging channels. The core gateway works. The plugin ecosystem is actively malicious."
+draft: false
+lang: en
+---
+
+OpenClaw has been out for six months and it already has more GitHub stars than React. That fact alone is worth pausing on.
+
+Peter Steinberger launched the project in November 2025 under the name Clawdbot. Two rebrands later, it arrived at OpenClaw, and by March 2026 it had crossed 250,000 stars in roughly 60 days, a milestone React took over a decade to reach. The repo sits at around 370,000 stars as of early May 2026.
+
+## What it actually does
+
+OpenClaw is a self-hosted gateway. You run one process on your machine or a server. That process connects to whatever AI model you point it at, Claude, GPT, Gemini, DeepSeek, and makes that model reachable through the messaging apps you already use: WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Microsoft Teams, Matrix, and around 40 more. The model can also execute tasks: shell commands, file operations, browser automation, API calls, and calendar scheduling.
+
+The configuration and session history stay local. No SaaS intermediary.
+
+Recent releases show the pace of development. v2026.5.7 (May 7) fixed Discord voice permissions and WhatsApp media handling. v2026.5.4 (May 5) added Twilio dial-in joins going through a Gemini voice bridge with paced audio streaming. The project ships on a near-daily cadence, with stable, beta, and dev dist-tags on npm.
+
+## Why people are paying attention
+
+The pitch is simple: you want AI access across all your tools without routing everything through a third-party cloud. Teams with data residency requirements or privacy constraints are the obvious target. But a lot of the early adoption appears to be individual developers who just want a persistent assistant on their own hardware.
+
+The channel coverage is the main differentiator. Most self-hosted AI setups give you one interface, a web UI or a CLI. OpenClaw gives you 50-plus channels out of the box, handled by a plugin system called ClawHub.
+
+That plugin system is also where the problems are.
+
+## The security picture
+
+Cisco published a report showing a malicious third-party skill performing silent data exfiltration via embedded curl commands, executing network calls without any user prompt. A separate finding from PromptArmor showed that link previews in Telegram and Discord can be turned into indirect prompt injection vectors, where the agent generates an attacker-controlled URL and sends data to it automatically.
+
+The numbers from ClawHub are not encouraging. As of early 2026, over 800 skills in the registry, roughly 20 percent of it, were found to be malicious, primarily delivering macOS stealer malware.
+
+CVE-2026-25253 (CVSS 8.8) was patched in v2026.1.29 and covers incorrect resource transfer between spheres. That one is fixed. The plugin ecosystem problem is ongoing.
+
+One of the project's own maintainers has said publicly that users who cannot use a command line should avoid OpenClaw entirely. That is not a criticism you expect to see from the inside, and it is probably the most honest framing of who this tool is actually for.
+
+## Where Microsoft fits in
+
+There have been claims of a public Microsoft fork at github.com/microsoft/openclaw. I could not verify that. What is documented is that Microsoft ran an internal initiative called "Project Lobster" in early 2026, testing an OpenClaw-based desktop environment internally called ClawPilot [?]. Whether that becomes a public fork or a product is not confirmed.
+
+The project did hold an "OpenClaw: After Hours" event at GitHub HQ during Microsoft Build 2026 in June, which GitHub's own blog announced. That is a signal of legitimacy, not necessarily of Microsoft product intent.
+
+## What to make of it
+
+OpenClaw is interesting as infrastructure, not as a consumer product. If you control your deployment, vet your plugins, and understand that you are giving a local agent broad access to your accounts, it is a capable piece of tooling. If you do not, the attack surface is real.
+
+The growth numbers are genuine. The star count is not inflated by aggregator repositories. The maintainers ship code every day. The security concerns are also real and not fully addressed at the ecosystem level.
+
+I would watch ClawHub's moderation approach before recommending it to anyone running this in a team setting. The core gateway works. The plugin ecosystem is where the risk lives.
