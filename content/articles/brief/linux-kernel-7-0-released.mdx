@@ -1,0 +1,85 @@
+---
+title: "Linux kernel 7.0: what operators need to audit now"
+format: brief
+slug: linux-kernel-7-0-released
+pathway: sysadmin-craft
+tags:
+  - linux
+  - kernel
+publishedAt: 2026-05-07T11:00:00+02:00
+excerpt: "Linux 7.0 is out. SHA-1 module signing is removed, NFSv4.0 becomes kconfig-configurable, and lazy preemption replaces the old scheduler default. Here is what to audit before upgrading production nodes."
+draft: false
+lang: en
+---
+
+Linux 7.0 was released on 12 April 2026. Linus Torvalds has said before that kernel version numbers are arbitrary — he bumps the major digit when the minor number starts feeling unwieldy, not because the release crosses a technical threshold. This release follows that pattern. The 6.x series ran from 6.0 through 6.19 before the rollover.
+
+That said, "major version bump" still moves things. Subsystem maintainers who held back breaking changes because they did not want to be the person who required a config audit tend to push them at a major boundary. Linux 7.0 has several of those. Plan accordingly.
+
+## SHA-1 is deprecated for module signing
+
+The kernel will still load SHA-1-signed modules in 7.0, but the toolchain now refuses to sign modules with SHA-1. The attempt will fail, not warn.
+
+What to check: any out-of-tree kernel modules — DKMS modules, proprietary drivers (Nvidia, VirtualBox, custom hardware drivers), and anything your organization builds internally. If the module is signed with SHA-1, the signing key and the signing step in your build pipeline both need to change.
+
+Check the signing algorithm on an existing module:
+
+```bash
+modinfo <module_name> | grep signer
+openssl x509 -in /proc/keys -text 2>/dev/null | grep -i sha
+```
+
+For DKMS modules, check `/etc/dkms/framework.conf` and look for `sign_tool` or `mok_signing_key` configuration. The signing certificate itself needs to be SHA-256 or stronger, and the signing command needs to pass `-sha256` explicitly.
+
+This affects Secure Boot environments most severely. If you use a Machine Owner Key (MOK) to sign out-of-tree modules, audit the key now. Generating a new MOK with SHA-256 and enrolling it in the UEFI firmware takes time; do not leave this for a maintenance window two releases from now.
+
+## NFSv4.0 becomes kconfig-configurable in Linux 7.0
+
+NFSv4.0 is now kconfig-configurable in Linux 7.0, meaning it can be disabled at build time. Check your distribution's kernel config before assuming NFSv4.1 negotiation behavior has changed — this varies by distro build options. This changes behavior in two areas: session-based recovery and parallel NFS (pNFS) engagement.
+
+NFSv4.1 uses session-based state management. Failover and lease recovery work differently than in 4.0. If your NFS server is a Linux host running a current kernel, this is likely transparent. If it is an appliance, a NAS, or an older enterprise storage system, verify that the server's NFSv4.1 implementation is solid before upgrading the client kernels.
+
+Check what version your existing mounts are negotiating:
+
+```bash
+nfsstat -m | grep vers
+```
+
+If you see `vers=4.0` on critical mounts and you are not prepared to test 4.1 semantics, lock the version explicitly in `/etc/fstab`:
+
+```
+server:/export  /mnt/data  nfs  vers=4.0,_netdev  0  0
+```
+
+Also check pNFS. NFSv4.1 enables pNFS negotiation with servers that advertise layout support. pNFS lets the client read data directly from storage devices, bypassing the NFS server for data transfers. Most deployments will not encounter pNFS because most NFS servers do not advertise layout support, but storage appliances (some NetApp and EMC configurations) do. If you have not tested pNFS in your environment, add `nfsvers=4.1,nopnfs` initially, verify stability, then enable pNFS separately.
+
+## Rust 1.93 now required for Linux 7.0 kernel builds
+
+The minimum Rust version required to build the kernel has moved to Rust 1.93 (with Bindgen 0.71.1). Rust has also moved from experimental to a permanent part of the kernel build. This affects distributions that ship Rust-based kernel components and any team building custom kernels. If your build system pins a specific Rust toolchain version, check compatibility before upgrading the kernel source.
+
+Pure C builds are unaffected.
+
+## BPF, io_uring, and scheduler changes in Linux 7.0
+
+**BPF:** The BPF subsystem has new features in 7.0, including IO_uring filtering and extended BTF type lookups. As a general rule with any major kernel bump, recompile and re-verify BPF programs against the new kernel headers before deploying.
+
+**DRM/KMS:** Several GPU driver subsystems moved their logging from `printk` to `drm_dbg`. Log parsers or monitoring tools that grep kernel logs for GPU errors may need pattern updates.
+
+**Scheduler:** Linux 7.0 makes lazy preemption the default scheduling mode. This affects latency-sensitive workloads. Check your realtime task configurations if any systems use `SCHED_DEADLINE` or depend on specific preemption behavior.
+
+## What does not break
+
+Standard userspace is unaffected. glibc, systemd, OpenSSL, container runtimes (containerd, CRI-O, Docker), and Kubernetes itself have no 7.0-specific issues. The kernel ABI for syscalls is stable, as always.
+
+Distribution kernels (Ubuntu, Fedora, Debian, RHEL) will carry the 7.0 base with backported fixes and may diverge from some of these defaults — check your distribution's release notes before assuming the upstream defaults apply directly.
+
+Kernels before the 7.0 fixes are also affected by CVE-2026-31431 (Copy Fail) — see [the advisory](/brief/cve-2026-31431-copy-fail-linux-lpe) for patching details.
+
+## What to do before deploying 7.0 nodes
+
+1. Audit out-of-tree kernel modules for SHA-1 signing. Regenerate signing keys if necessary.
+2. Test NFS mounts on a staging node. Verify server compatibility with NFSv4.1. Lock to 4.0 in production until testing is complete.
+3. Recompile and re-verify any BPF programs against 7.0 kernel headers.
+4. Check `SCHED_DEADLINE` configurations and latency-sensitive workloads if any systems depend on specific preemption behavior.
+
+Read the [Phoronix release coverage](https://www.phoronix.com/news/Linux-7.0-Released) and the [9to5Linux feature overview](https://9to5linux.com/linux-kernel-7-0-officially-released-this-is-whats-new) for a broader look at new features. The [kernel.org changelog](https://cdn.kernel.org/pub/linux/kernel/v7.x/) has the full diff.

@@ -1,0 +1,92 @@
+---
+title: "Grafana 13 upgrade guide for self-hosted operators"
+format: deep-dive
+slug: grafana-13-single-host-operators
+pathway: aiops-observability
+tags:
+  - grafana
+  - loki
+  - observability
+  - self-hosted
+  - upgrade
+publishedAt: 2026-05-07T12:00:00+02:00
+excerpt: "Grafana 13 upgrade checklist for single-host Docker Compose setups. Git Sync is GA, React 19 breaks community plugins, Unified Storage migrates automatically. Here is what to verify before you change the image tag."
+draft: false
+lang: en
+---
+
+Grafana 13 dropped on 21 April 2026 at GrafanaCON in Barcelona. The press coverage focused on Kafka-backed Loki, a rearchitected query engine, and a new Grafana Assistant. Most of that is irrelevant to how I actually run Grafana.
+
+My setup: single Hetzner host, Docker Compose, Grafana 11.6, Loki 3.6 in single-binary mode with filesystem chunks, Prometheus v3, and Alloy as the unified collector. Nine dashboards provisioned from JSON files mounted read-only. Two Marcus Olsson community plugins. No Kubernetes, no Kafka, no distributed anything.
+
+Here is what Grafana 13 actually changes for an operator running this kind of stack.
+
+## Git Sync replaces file provisioning — if you want it to
+
+The biggest day-to-day change for self-hosters is Git Sync reaching GA. The idea: instead of mounting JSON files into the container and having Grafana load them read-only at startup, you point Grafana at a Git repository. Grafana pulls dashboards from the repo and, critically, pushes changes back when you edit through the UI.
+
+My current setup is one-directional. The JSON files live in the repo. Grafana reads them. If I change a panel through the browser, the change is lost on the next container restart because the file on disk didn't change. To persist a UI edit, I have to export the JSON manually and commit it. This is fine, but it breaks the feedback loop between quick iteration in the UI and the source-of-truth in version control.
+
+Git Sync closes that gap. GitHub App, GitLab, Bitbucket, and plain Git over SSH are all supported at GA. Two-way sync means you can rough out a dashboard in the UI, then pull the diff in the repo like any other change.
+
+**One note before you upgrade:** v13.0.0 had a migration bug that could drop dashboards when upgrading from 12.x with the Git Sync feature flag already active. Grafana Labs pulled v13.0.0 from distribution. Go directly to v13.0.1 or whatever the latest patch is at the time you upgrade — worth checking the [Grafana releases page](https://github.com/grafana/grafana/releases) before you pull a new image. This is a good reminder that reading the upgrade guide before touching a production compose stack is not optional.
+
+## Grafana 13 Unified Storage migration: what happens on first startup
+
+Grafana 13 introduces Unified Storage as GA. Folders and dashboards move from the SQL-based storage schema to a new unified backend. The migration runs automatically on first startup.
+
+For most operators the practical question is: what is Grafana using for storage? The default is SQLite, which lives in the `grafana-data` volume. I have not changed this. Unified Storage adds a write path to that same SQLite file during migration, which means two things:
+
+First, SQLite lock risk. SQLite handles one writer at a time. The migration is a one-time operation logged in `unifiedstorage_migration_log`, but if something interrupts it mid-run, the database state is unclear. This is not a theoretical risk on a host where Watchtower restarts containers automatically.
+
+Second, backup discipline matters more now. Before upgrading, take a snapshot of the `grafana-data` volume. The migration is a one-way transformation. There is no documented rollback path from Unified Storage back to the legacy schema.
+
+I also run nine file-provisioned dashboards. Grafana 13 makes Dynamic Dashboards GA — every dashboard, new and existing, uses the new layout engine. Migration happens when you open the dashboard, not at startup. No manual steps, but the first open of each dashboard is the moment of truth. I need to open all nine and verify they render correctly after upgrade. Straightforward to check, but it belongs in the upgrade checklist, not discovered afterward.
+
+## Grafana Advisor: built-in health checks in Grafana 13
+
+Grafana Advisor is a new GA feature that runs health checks on your installation and surfaces problems in the UI. The checks cover plugin versions, data source connectivity, SSO configuration, and some RBAC settings.
+
+For a self-managed setup this is genuinely useful. My current process for checking whether a plugin is outdated is either manual inspection in the plugin catalog or checking the Grafana logs. Advisor centralizes that. I expect it to flag the Marcus Olsson plugins immediately, which brings me to the next point.
+
+## Grafana 13 React 19: which community plugins break
+
+Grafana 13 migrates to React 19. All plugins must be compatible. If a plugin was built against React 17 or 18, it may break in a Grafana 13 installation.
+
+I use `marcusolsson-json-datasource` and `marcusolsson-dynamictext-panel`. Both are community plugins with uncertain Grafana 13 compatibility as of May 2026.
+
+`marcusolsson-dynamictext-panel` (Business Text) explicitly states compatibility with Grafana 11 and 12. No Grafana 13-compatible version is confirmed in the plugin catalog yet. If no update ships before you upgrade, panels using this plugin will not render.
+
+`marcusolsson-json-datasource` is in maintenance mode. Grafana recommends migrating to the [Infinity data source](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/) as a replacement. If you rely on JSON datasource for dashboards, plan the migration to Infinity before upgrading to Grafana 13.
+
+Check both plugin pages directly before upgrading: [Business Text](https://grafana.com/grafana/plugins/marcusolsson-dynamictext-panel/) and [JSON API](https://grafana.com/grafana/plugins/marcusolsson-json-datasource/). If no Grafana 13-compatible version is listed, this upgrade is blocked until updates arrive.
+
+## What the Loki news actually means for a single-binary setup
+
+The most prominent Loki news at GrafanaCON 2026 was the rearchitected Kafka-backed ingestion path. Ingesters consume from a Kafka queue, distributed query work is spread across partitions, and Grafana Labs claims 20x less data scanned and 10x faster aggregated queries.
+
+None of this applies to a single-binary Loki deployment. The Kafka architecture targets distributed installations. The single-binary mode I run — replication factor 1, filesystem chunks, schema v13 with TSDB — is unaffected. The feature is not behind a flag I would accidentally enable; it requires the distributed deployment model.
+
+Loki also announced full-text log indexing (Logline) for needle-in-haystack search, and a new query scheduler. I have not confirmed which Loki version numbers carry these features, and whether they apply to single-binary or only to the new distributed architecture. Worth checking the Loki release notes before assuming any of the query performance improvements apply to my stack.
+
+The practical upshot: if you are running single-binary Loki and considering a move to the Kafka-backed architecture for the performance numbers, the question to answer first is whether your log volume actually justifies that operational complexity. For a single-host setup collecting host metrics, container logs, and Traefik access logs, single-binary is the right call until the volume makes it obviously wrong.
+
+## Alerting API changes
+
+Grafana 13 promotes Kubernetes-style alerting APIs under `notifications.alerting.grafana.app/v1beta1` for receivers, routing trees, templates, and mute timings. Two legacy endpoints are removed: `DELETE /api/alertmanager/grafana/config/api/v1/alerts` and `POST .../receivers/test`.
+
+I use Grafana-managed alerting with the built-in Alertmanager. I do not call these alerting API endpoints directly from scripts or from Alloy configuration. The risk here is low, but it is worth checking any provisioning scripts or automation that touches the alerting API before upgrading.
+
+## Legacy /api paths deprecated in Grafana 13
+
+Grafana 13 moves toward Kubernetes-style API namespacing under `/apis`. The legacy `/api` paths are still available but deprecated. This matters for one specific part of my setup: Authelia ForwardAuth sits in front of the Grafana UI, but I have a separate Traefik router that bypasses Authelia for `/api/` paths (for service-account tokens). If Grafana starts routing traffic under `/apis/`, that router rule needs updating. The legacy `/api` paths staying available for now gives me a window to fix this, but it should not be forgotten.
+
+If Traefik sits in front of Grafana — [see the Traefik 3.6.14 advisory](/brief/traefik-3-6-14-released) for context on the router rule structure — update those rules when `/api` paths eventually stop working.
+
+## What changed, short version
+
+Git Sync is the meaningful new feature for self-hosters. Unified Storage migration requires a backup before upgrade and a verified working database after. The v13.0.0 pull means starting at v13.0.1 at minimum. React 19 compatibility on community plugins is a gate that has to be checked per plugin before upgrading. The Loki Kafka architecture, Pyroscope improvements, and most of the enterprise features are not relevant to a single-host deployment.
+
+The Grafana upgrade guides for v13.0 are detailed. Read them before you change the image tag.
+
+For operators running a broader observability stack, [Wazuh 5.0](/brief/wazuh-5-released) has similar single-host migration considerations worth reading alongside this one.
