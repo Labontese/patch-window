@@ -1,0 +1,220 @@
+---
+title: "Kubernetes 1.36 DRA: GPU scheduling is production-ready"
+format: deep-dive
+slug: kubernetes-1-36-dra-gpu-scheduling
+pathway: infrastructure-strategy
+tags:
+  - kubernetes
+  - dra
+  - gpu
+  - gpu-scheduling
+  - cloud-native
+  - resource-allocation
+  - mlops
+publishedAt: 2026-05-08T10:00:00+02:00
+excerpt: "Kubernetes 1.36 completes DRA's GA story for GPU workloads. We cover device taints, MIG partitioning, and what breaks before you ship this to prod."
+draft: false
+lang: en
+---
+
+The old device plugin model sees a GPU as a number. It cannot tell you whether that GPU is an A100 with 40 GB or an H100 with 80 GB. It cannot split the GPU between two jobs. It cannot mark one card for maintenance without draining the whole node. If you're paying for GPU time, that's real money going to waste.
+
+Kubernetes 1.36 (released April 22, 2026) is the release where the full Dynamic Resource Allocation stack stabilizes. DRA core graduated to GA in 1.34. What 1.36 adds is the satellite features that make GPU scheduling actually usable in production: AdminAccess, Prioritized Alternatives, and PodResources Extension all reach GA. Device taints and partitionable devices land as Beta with default-on gates.
+
+Here's what that means for a platform team running GPU workloads.
+
+## What device plugins get wrong
+
+Device plugins register resources as simple counts: `nvidia.com/gpu: 4`. The scheduler sees four GPUs. It knows nothing else.
+
+That model breaks in five concrete ways:
+
+- No sharing: one pod, one GPU, always. An inference job needing 2 GB gets a 40 GB card to itself.
+- No attribute matching: you cannot request "an Ampere card with at least 16 GB." You get whatever the count says.
+- No fallback: if H100s are full, the job queues. It does not fall back to A100s automatically.
+- No per-device health: a degraded card is either schedulable or it isn't. There's no middle state.
+- No per-device maintenance: marking one GPU for service means draining the entire node.
+
+DRA replaces all of this with a proper API layer.
+
+## The four API objects
+
+### DeviceClass
+
+The cluster administrator creates DeviceClasses. They work like StorageClasses: define a category of hardware with optional CEL-based filters. Workload authors reference them by name.
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: gpu-high-memory
+spec:
+  selectors:
+    - cel:
+        expression: >
+          device.driver == 'gpu.nvidia.com' &&
+          device.capacity["gpu.nvidia.com"].memory >= quantity("16Gi")
+```
+
+### ResourceSlice
+
+The DRA driver publishes a ResourceSlice per node. It describes every device with full attributes and updates in real time as health status changes.
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata:
+  name: node1-nvidia-gpu-0
+spec:
+  nodeName: node1
+  driver: gpu.nvidia.com
+  pool:
+    name: node1-gpus
+    generation: 1
+    resourceSliceCount: 1
+  devices:
+    - name: gpu-0
+      basic:
+        attributes:
+          model:
+            string: "A100-SXM4-40GB"
+          architecture:
+            string: "Ampere"
+          cudaComputeCapability:
+            string: "8.0"
+          driverVersion:
+            string: "525.85.12"
+        capacity:
+          memory: "40Gi"
+          multiprocessors: "108"
+```
+
+This is what DRA knows that device plugins never did. The scheduler can match against any of these fields.
+
+### ResourceClaim
+
+Workload authors write ResourceClaims to request specific hardware. The request uses CEL expressions against the ResourceSlice attributes.
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: my-gpu-claim
+spec:
+  devices:
+    requests:
+    - name: primary-gpu
+      exactly:
+        deviceClassName: gpu-high-memory
+        selectors:
+        - cel:
+            expression: >
+              device.attributes["gpu.nvidia.com"].architecture == "Ampere" &&
+              device.capacity["gpu.nvidia.com"].memory >= quantity("16Gi")
+```
+
+### ResourceClaimTemplate
+
+For Jobs and Deployments where each pod needs its own dedicated resource, use a ResourceClaimTemplate. Kubernetes creates one ResourceClaim per pod automatically; the lifecycle follows the pod.
+
+```yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: per-pod-gpu
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu-high-memory
+```
+
+Wiring a ResourceClaim into a pod spec:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ml-training-job
+spec:
+  resourceClaims:
+  - name: gpu
+    resourceClaimTemplateName: per-pod-gpu
+  containers:
+  - name: trainer
+    image: nvcr.io/nvidia/pytorch:24.03-py3
+    command: ["python", "train.py"]
+    resources:
+      claims:
+      - name: gpu
+```
+
+## Device plugins vs DRA
+
+| Dimension | Device plugins | DRA |
+|---|---|---|
+| Resource model | Simple count (N devices) | Full objects with attributes |
+| Sharing | No | Yes (partitionable devices) |
+| Attribute-based selection | No | Yes (CEL expressions) |
+| Fallback / priority | No | Yes (Prioritized Alternatives) |
+| Per-device maintenance | No (requires node drain) | Yes (device taints) |
+| Health status | Limited | Real-time via ResourceSlice |
+| Observability | Limited | PodResources Extension gRPC API |
+| API stability | Stable | GA since 1.34, complete in 1.36 |
+| Driver complexity | Simple daemonset | DRA-compatible driver (more complex) |
+
+## What's GA in 1.36
+
+| Feature | Status | What it gives you |
+|---|---|---|
+| DRA core (ResourceClaim, DeviceClass, ResourceSlice) | GA | Stable for production use |
+| AdminAccess | GA | Privileged device access for admin tooling and debug |
+| Prioritized Alternatives | GA | Fallback chains: H100 then A100 then T4 |
+| PodResources Extension | GA | gRPC API exposing exactly which hardware the pod got |
+| Partitionable Devices | Beta, default on | GPU sharing via MIG |
+| Device Taints | Beta, default on | Per-device maintenance marking |
+| Downward API | Alpha | Expose allocated device info to pod env vars |
+
+The two relevant feature gates in 1.36 are `DRADeviceTaints` (Beta, default: true) and `DRAPartitionableDevices` (Beta, default: true). `DynamicResourceAllocation` itself is stable and locked since 1.35; it is not a configurable gate in 1.36 clusters.
+
+There is also a second gate to know: `DRADeviceTaintRules` (Beta, default: false) controls a separate capability for admin-defined taint rules applied across devices. It requires explicit activation and is distinct from `DRADeviceTaints`.
+
+## GPU partitioning with MIG
+
+NVIDIA MIG (Multi-Instance GPU) is the reference implementation for `DRAPartitionableDevices`. An A100 with 40 GB running the `all-balanced` profile can be split into partitions like:
+
+- 2x `1g.5gb` for light inference
+- 1x `2g.10gb` for mid-size workloads
+- 1x `3g.20gb` for heavier training
+
+On an 8-GPU node, that's 32 independently schedulable slices with hardware isolation: dedicated compute units, memory controllers, and cache per slice.
+
+Each MIG partition is published as a separate device in ResourceSlice with its own attributes. The scheduler matches ResourceClaims against partitions, not physical GPUs. Allocation happens at scheduling time, not at runtime. That eliminates the race conditions that device plugins deal with via mutex locks and retry loops.
+
+One practical catch: if you run the `all-balanced` profile (heterogeneous partitions), GPU Operator must be configured with `mig.strategy: "mixed"`. Without it, GPU Feature Discovery marks the devices as invalid and they don't appear to the scheduler.
+
+On AKS, MIG via DRA is confirmed working as of March 2026. On EKS, DRA was enabled with Kubernetes 1.33 (May 2025). Both managed services use NVIDIA's `k8s-dra-driver` component for MIG support, which ships with GPU Operator 25.x integration. This is separate from the device plugin shipped with earlier GPU Operator versions; do not assume DRA-level MIG support from GPU Operator 24.x.
+
+## Device taints
+
+Device taints work like node taints but at the device level. A DRA driver can put a taint on a single GPU without touching the node. Pods without a matching toleration won't schedule to that device.
+
+Practical use: rolling hardware maintenance on a live GPU cluster. Mark `gpu-0` with `maintenance=true:NoSchedule`. Running workloads drain gradually as they complete. Service the card. Remove the taint. The node stays up throughout.
+
+For distributed training jobs, a node drain is expensive. Aborting a multi-day training run costs real money and time. Per-device taints make planned maintenance possible without that cost.
+
+## What breaks before you ship this to prod
+
+**ResourceClaims are immutable.** Once created, you cannot modify a claim. If your workload's hardware requirements change, you create a new claim. This is intentional (allocation integrity) but means your job manifests need to be rebuilt, not patched.
+
+**Devices must be co-located with the pod.** There is no cross-node device sharing. If your job needs two GPUs on different nodes, DRA cannot help with that topology. Plan your node sizing accordingly.
+
+**DRA drivers are more complex than device plugins.** Writing a DRA-compatible driver requires implementing the full ResourceSlice publication loop, health reporting, and CEL attribute schema. Third-party hardware support will lag behind the ecosystem maturity. AMD's ROCm DRA driver is under active development but not production-ready as of Q2 2026.
+
+**Managed service support is not uniform.** AKS and EKS have DRA with MIG. GKE's GA status with DRA is not confirmed at the same level. Check your specific provider version and their DRA documentation before building on this assumption.
+
+**NVIDIA's own documentation still flags caveats.** As of late 2025, NVIDIA's published documentation described DRA as "not yet supported for production use" in some sections. That status is evolving rapidly with GPU Operator 25.x, but verify against current NVIDIA documentation before committing to DRA in a production GPU cluster.
+
+The mechanics are solid. The ecosystem around the mechanics is still catching up.

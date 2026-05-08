@@ -1,0 +1,162 @@
+---
+title: "ingress-nginx is EOL: half your clusters are unpatched"
+format: hot-take
+slug: ingress-nginx-eol-kubernetes-gateway-api
+pathway: sysadmin-craft
+tags:
+  - ingress-nginx
+  - kubernetes
+  - networking
+  - gateway-api
+  - eol
+  - security
+  - devops
+publishedAt: 2026-05-08T11:00:00+02:00
+excerpt: "ingress-nginx went EOL in March 2026. No security patches, no CVE fixes. 50% of Kubernetes clusters still run it. Time to move to Gateway API."
+draft: false
+lang: en
+---
+
+Half of all Kubernetes clusters are running a dead ingress controller right now.
+
+`kubernetes/ingress-nginx` went end-of-life in March 2026. The repo is archived. No more security patches. No more bug fixes. Every CVE that lands in NGINX from here on has nobody upstream to fix it.
+
+The numbers are hard to argue with. According to Datadog telemetry, cited in the Kubernetes Steering Committee statement from January 2026, 50% of Kubernetes clusters run ingress-nginx. That is not a niche tool with a niche blast radius. That is the default ingress controller for a massive portion of production Kubernetes.
+
+## How we got here
+
+The timeline matters, because this did not come out of nowhere.
+
+At KubeCon NA 2024, the project maintainers signaled that the project was heading toward shutdown. At KubeCon NA 2025, the Kubernetes project made it official with a date: March 2026. Two public announcements, over a year of warning. And still, as of May 2026, the migration has barely started for most teams.
+
+The project did not die because it was bad. It died because it was run by one or two unpaid maintainers drowning in issues. The popularity was the problem. More users, more bug reports, more CVE escalations -- but no budget, no staff, no org willing to take ownership. The annotations system, which lets users inject arbitrary NGINX config, had been a recurring security problem for years. Every CVE was a fire the same two people had to put out.
+
+InGate, the planned successor with native Gateway API support, never left alpha. It is also being shut down.
+
+## What the risk actually looks like
+
+Your clusters do not stop working on March 31. The ingress controller keeps routing traffic. Helm charts and container images still exist. But from this point forward:
+
+- CVEs in the NGINX core go unpatched upstream
+- Bugs that affect routing get no fix
+- New Kubernetes versions may remove APIs that ingress-nginx depends on, with no patch forthcoming
+
+It is the same as running a server with no security updates. It works until it does not, and when it does not, the failure is ugly.
+
+## Why most teams have not moved yet
+
+The migration is real work. Five specific reasons it stalls:
+
+1. `nginx.ingress.kubernetes.io/*` annotations are vendor-specific. They have no equivalent in Gateway API. Every annotation that encodes routing logic needs manual translation to HTTPRoute filters, ReferenceGrants, or policy objects.
+
+2. The role model is different. ingress-nginx runs with shared ownership -- one team handles everything. Gateway API splits that into infrastructure team (Gateway) and app team (HTTPRoute). That is an organizational change, not just a config change.
+
+3. TLS moves up the stack. In ingress-nginx, TLS is per-Ingress object. In Gateway API, certificates live on the Gateway itself. Any workflow built around cert-manager with per-app TLS needs adjustment.
+
+4. Controller choice is not obvious. Different Gateway API implementations have different conformance levels. Not all support TCP/UDP. Cilium, Contour, Traefik, Kong, and F5 NGINX IC all implement Gateway API, but they are not interchangeable.
+
+5. `ingress2gateway` helps but does not finish the job. It converts basic Ingress manifests. Vendor-specific annotations need manual review, every time.
+
+None of this is a reason to stay. Plan before starting.
+
+## What Gateway API actually looks like
+
+The conceptual shift is worth understanding before you touch any YAML. ingress-nginx uses a single flat resource:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: app.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80
+```
+
+Gateway API splits that into three objects with distinct ownership:
+
+```yaml
+# Infrastructure team owns this
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cilium
+spec:
+  controllerName: io.cilium/gateway-controller
+
+---
+# Platform team owns this
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: prod-gateway
+  namespace: infra
+spec:
+  gatewayClassName: cilium
+  listeners:
+  - name: https
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - name: wildcard-cert
+
+---
+# App team owns this, in their own namespace
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-app-route
+  namespace: app-team
+spec:
+  parentRefs:
+  - name: prod-gateway
+    namespace: infra
+  hostnames:
+  - "app.example.com"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /api
+    backendRefs:
+    - name: api-service
+      port: 8080
+```
+
+More objects, more clarity. Header-based routing, traffic splitting, rewrites, and timeouts are all native in HTTPRoute -- no annotation hacks. Resources report whether they are `Accepted` and `Programmed` with actual error messages instead of silent failures.
+
+## Where to go
+
+| Controller | Best for | Migration effort |
+|---|---|---|
+| F5 NGINX Ingress Controller | Teams that want minimal disruption -- same data plane, different codebase | Low |
+| Cilium Gateway | Teams ready to go all-in on Gateway API -- eBPF, CNCF-backed, drop-in Ingress compatibility mode available | Low to medium |
+| Contour | Envoy-based, active community, solid production track record | Medium |
+| Traefik | Existing Traefik users or homelabs | Medium |
+| Kong Gateway | API gateway needs alongside ingress, has annotation translation tooling | Medium |
+
+My recommendation: pick Cilium if you are starting fresh or have the appetite for it. It runs natively on Gateway API, has an Ingress compatibility mode to ease the transition, and is backed by CNCF with real engineering resources. Pick F5 NGINX IC if you need to move fast with minimal friction.
+
+Both are real projects with real maintainers. That is exactly what ingress-nginx stopped having.
+
+## The actual move
+
+Do an inventory now. Find every cluster running ingress-nginx. Check whether your Helm chart is pinned to a version from before the EOL. Run `ingress2gateway` against your manifests to see how much of your config converts cleanly.
+
+The project gave you a year of warning. That time is up.
+
+---
+
+*Sources: [Ingress NGINX Retirement -- kubernetes.io, 2025-11-11](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/); [Kubernetes Steering Committee statement -- kubernetes.io/blog, 2026-01-29](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/); [Navigating the ingress-nginx archival -- CNCF blog, 2026-01-27](https://www.cncf.io/blog/2026/01/27/navigating-the-ingress-nginx-archival-why-now-is-the-time-to-move-to-cilium/); [Ingress NGINX is EOL: A practical guide for migrating to Gateway API -- Datadog Engineering](https://www.datadoghq.com/blog/migrate-to-gateway-api/); [Users scramble as critical open source project left to die -- The Register, 2025-12-02](https://www.theregister.com/2025/12/02/ingress_nginx_opinion/)*
