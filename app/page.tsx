@@ -36,6 +36,7 @@ export default function HomePage() {
     : allArticles
 
   return (
+    <>
     <main className="v2" id="main-content">
       {/* Visually-hidden h1 duplicate is NOT needed here —
           TerminalHeader renders the h1 itself */}
@@ -78,7 +79,8 @@ export default function HomePage() {
         </aside>
       </div>
 
-      <Footer />
     </main>
+    <Footer />
+    </>
   )
 }

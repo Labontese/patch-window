@@ -9,6 +9,7 @@ export default function Footer() {
   const { openBanner } = useConsent()
 
   return (
+    <div className="site-wrapper">
     <footer className="v2-footer" role="contentinfo">
       <span>
         <span aria-hidden="true">{'$ '}</span>
@@ -63,5 +64,6 @@ export default function Footer() {
         </a>
       </span>
     </footer>
+    </div>
   )
 }
