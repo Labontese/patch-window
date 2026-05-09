@@ -6,7 +6,7 @@ import LogRow from '@/components/patchlog/LogRow'
 import NowCard from '@/components/patchlog/NowCard'
 import TagCloud from '@/components/patchlog/TagCloud'
 import Subscribe from '@/components/patchlog/Subscribe'
-import TerminalFooter from '@/components/patchlog/TerminalFooter'
+import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
   title: 'Patch Window: Linux, DevOps & AI in production homelabs',
@@ -78,7 +78,7 @@ export default function HomePage() {
         </aside>
       </div>
 
-      <TerminalFooter />
+      <Footer />
     </main>
   )
 }

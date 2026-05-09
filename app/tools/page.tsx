@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import InnerHeader from '@/components/InnerHeader'
-import InnerFooter from '@/components/InnerFooter'
+import Footer from '@/components/Footer'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
 const BASE = 'https://patchwindow.serverdigital.net'
@@ -124,7 +124,7 @@ export default function ToolsPage() {
           ))}
         </ul>
       </main>
-      <InnerFooter />
+      <Footer />
     </>
   )
 }

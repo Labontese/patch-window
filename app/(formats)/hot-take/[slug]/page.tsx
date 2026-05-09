@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getArticleByFormatAndSlug, getArticlesByFormat } from '@/lib/articles'
 import InnerHeader from '@/components/InnerHeader'
-import InnerFooter from '@/components/InnerFooter'
+import Footer from '@/components/Footer'
 import ArticleHeader from '@/components/ArticleHeader'
 import AuthorBio from '@/components/AuthorBio'
 import Breadcrumbs from '@/components/Breadcrumbs'
@@ -99,7 +99,7 @@ export default async function HotTakePage({ params }: Props) {
           </article>
         </div>
       </main>
-      <InnerFooter />
+      <Footer />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}

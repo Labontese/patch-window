@@ -6,7 +6,7 @@ import matter from 'gray-matter'
 import { PATHWAYS, getPathwayDisplayName } from '@/lib/types'
 import { getArticlesByPathway } from '@/lib/articles'
 import InnerHeader from '@/components/InnerHeader'
-import InnerFooter from '@/components/InnerFooter'
+import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import { safeJsonLd } from '@/lib/jsonld'
@@ -109,7 +109,7 @@ export default async function PathwayPage({ params }: Props) {
           <p style={{ color: 'var(--color-text-muted)' }}>No articles in this pathway yet.</p>
         )}
       </main>
-      <InnerFooter />
+      <Footer />
     </>
   )
 }

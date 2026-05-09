@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { getArticlesByFormat } from '@/lib/articles'
 import InnerHeader from '@/components/InnerHeader'
-import InnerFooter from '@/components/InnerFooter'
+import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
@@ -44,7 +44,7 @@ export default function DeepDiveIndexPage() {
           <p style={{ color: 'var(--color-text-muted)' }}>No Deep Dives published yet.</p>
         )}
       </main>
-      <InnerFooter />
+      <Footer />
     </>
   )
 }

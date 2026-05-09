@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import SiteHeader from '@/components/SiteHeader'
-import SiteFooter from '@/components/SiteFooter'
+import Footer from '@/components/Footer'
 
 export default function NotFound() {
   return (
@@ -19,7 +19,7 @@ export default function NotFound() {
           <li><Link href="/about">About</Link></li>
         </ul>
       </main>
-      <SiteFooter />
+      <Footer />
     </>
   )
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import InnerHeader from '@/components/InnerHeader'
-import InnerFooter from '@/components/InnerFooter'
+import Footer from '@/components/Footer'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
 export const metadata: Metadata = {
@@ -53,7 +53,7 @@ export default function CorrectionsPage() {
           </p>
         </div>
       </main>
-      <InnerFooter />
+      <Footer />
     </>
   )
 }

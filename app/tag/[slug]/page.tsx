@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getArticlesByTag, getAllTags } from '@/lib/articles'
 import { slugToTitle } from '@/lib/types'
 import InnerHeader from '@/components/InnerHeader'
-import InnerFooter from '@/components/InnerFooter'
+import Footer from '@/components/Footer'
 import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import { safeJsonLd } from '@/lib/jsonld'
@@ -80,7 +80,7 @@ export default async function TagPage({ params }: Props) {
           <p style={{ color: 'var(--color-text-muted)' }}>No articles with this tag yet.</p>
         )}
       </main>
-      <InnerFooter />
+      <Footer />
     </>
   )
 }
