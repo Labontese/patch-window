@@ -21,10 +21,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const displayName = slugToTitle(slug)
   const url = `${BASE}/tag/${slug}`
+  const articles = getArticlesByTag(slug)
+  const thinContent = articles.length < 3
   return {
     title: `${displayName} articles`,
     description: `Articles tagged ${displayName} on Patch Window.`,
     alternates: { canonical: url },
+    ...(thinContent && { robots: { index: false, follow: true } }),
     openGraph: {
       title: `${displayName} articles`,
       description: `Articles tagged ${displayName} on Patch Window.`,
