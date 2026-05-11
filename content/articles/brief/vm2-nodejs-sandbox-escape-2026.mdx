@@ -1,0 +1,114 @@
+---
+title: "vm2 ships 12 critical CVEs: the Node.js sandbox is out again"
+format: brief
+slug: vm2-nodejs-sandbox-escape-2026
+pathway: sysadmin-craft
+tags:
+  - nodejs
+  - security
+  - sandbox
+  - cve
+publishedAt: 2026-05-11T12:00:00+02:00
+excerpt: "12 CVEs in vm2 disclosed May 7, 2026 — CVSS 9.1-10.0, all sandbox escapes. Patched in 3.11.2. If you run untrusted code under vm2, update today."
+draft: false
+lang: en
+---
+
+On 7 May 2026, researchers disclosed 12 critical sandbox escapes in vm2, the Node.js library used to run untrusted JavaScript in a contained environment. CVSS scores range from 9.1 to 10.0, with most clustered between 9.8 and 10.0. All affect all versions before 3.11.0. Patches are in 3.11.0, 3.11.1, and 3.11.2, with 3.11.2 being the version to land on.
+
+If you run vm2 to execute code from your users, in serverless runtimes, code playgrounds, AI agent tool sandboxes, or anywhere the input is not fully trusted, update today. There is no partial mitigation. The sandbox does not contain the code these CVEs target.
+
+## What vm2 is and what it was guarding
+
+vm2 wraps Node.js's built-in `vm` module to provide an isolated execution context for JavaScript that you do not trust. The standard `vm` module shares globals with the host process; vm2 was built specifically to prevent that, so you could let users submit code and run it without exposing your process internals. It is the library underneath a lot of serverless code execution, in-app scripting features, AI agent tool sandboxes, and education platforms that run student code on the server.
+
+The sandbox has been bypassed before. The 2023 incident retired the library from active development; the maintainer recommended migration to `isolated-vm`. The library continued to ship in dependency trees regardless, and the 7 May disclosure is what happens when a deprecated security boundary still has 12 ways out.
+
+## How the escapes work
+
+The 12 CVEs cluster into a handful of techniques, all variations on the same theme: get a reference to the host `Object` constructor and use it to escape the proxy boundary that vm2 maintains.
+
+- **Prototype chain access** via `__lookupGetter__` and `BaseHandler.getPrototypeOf`. vm2 wraps host objects in proxies that intercept access; these methods bypass the interception by reaching the prototype directly.
+- **Promise species property** manipulation. The species accessor on Promise lets sandboxed code influence what constructor gets used inside the host runtime, returning a host-context Promise that bridges back.
+- **Symbol-to-string coercion** triggering unhandled exceptions. The exception propagation across the sandbox boundary carries a stack reference that exposes host objects.
+- **Null-proto exceptions and prototype pollution.** Standard prototype pollution techniques, adapted to bypass vm2's prototype freezing.
+- **Array species batch neutralisation.** The species pattern again, this time on Array, used in a batch operation that lets the attacker churn through enough species lookups to land a host reference.
+
+Each technique results in the same outcome: arbitrary code running as the Node.js host process, with full access to the filesystem, network, environment, and any credentials the process holds.
+
+## What to update and how
+
+Update vm2 to 3.11.2.
+
+```bash
+npm install vm2@3.11.2
+# or
+yarn add vm2@3.11.2
+# or
+pnpm add vm2@3.11.2
+```
+
+If vm2 is a transitive dependency, check `npm ls vm2` to find what is pulling it in, and update the parent package or override the version in your lockfile.
+
+```bash
+npm ls vm2
+```
+
+For `package.json` overrides:
+
+```json
+{
+  "overrides": {
+    "vm2": "3.11.2"
+  }
+}
+```
+
+For Yarn:
+
+```json
+{
+  "resolutions": {
+    "vm2": "3.11.2"
+  }
+}
+```
+
+Re-run your install command after editing.
+
+## CVE list
+
+```
+CVE-2026-24118
+CVE-2026-24120
+CVE-2026-24781
+CVE-2026-26332
+CVE-2026-26956
+CVE-2026-43997
+CVE-2026-43998
+CVE-2026-43999
+CVE-2026-44001
+CVE-2026-44005
+CVE-2026-44006
+CVE-2026-44007
+CVE-2026-44008
+CVE-2026-44009
+```
+
+## What to do if you cannot patch immediately
+
+There is no partial mitigation that holds. Every one of the 12 CVEs lets sandboxed code reach the host. WAF rules at the HTTP layer cannot inspect the JavaScript well enough to filter the techniques. Disabling specific globals inside the sandbox does not work because the escapes use mechanisms the sandbox cannot intercept.
+
+If the patch cannot land today, the only safe stance is to stop accepting untrusted input into vm2 until it does. For an API endpoint that runs user-submitted code, return a 503 with an explicit "service degraded for security maintenance" message. For an AI agent that executes tool code in a vm2 sandbox, disable the code-execution tool and fall back to a tool that does not run user-controlled JavaScript.
+
+## Migrating off vm2
+
+If you are running vm2 in production for untrusted code execution, the longer answer is to migrate to a different isolation primitive. The options:
+
+- **`isolated-vm`** runs each sandbox in a separate V8 isolate, which is a stronger boundary than vm2's proxy approach. It is the migration the vm2 maintainer recommended in 2023. It is also more memory-intensive and has a different API surface.
+- **WebContainers and WASM runtimes** run untrusted code in a WebAssembly sandbox rather than a Node.js context. Strong isolation, slower startup, smaller capability surface.
+- **External process isolation** spawns a subprocess with `seccomp` filters, Linux namespaces, or a `gVisor` or `firecracker`-class sandbox. The strongest boundary, the most operational complexity.
+
+None of these is a drop-in replacement for vm2. Each one requires re-architecting the part of your system that hands off untrusted code. The 7 May disclosure is a good moment to put that work on the roadmap.
+
+Read the [Hacker News write-up](https://thehackernews.com/2026/05/vm2-nodejs-library-vulnerabilities.html) for the full list of CVEs and the research disclosures.

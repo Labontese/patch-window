@@ -1,0 +1,133 @@
+---
+title: "Replacing SQLite with an FST: 300x smaller (and why it works)"
+format: deep-dive
+slug: replace-sqlite-with-fst-300x
+pathway: infrastructure-strategy
+tags:
+  - sqlite
+  - data-structures
+  - performance
+  - backend
+  - rust
+publishedAt: 2026-05-11T15:00:00+02:00
+excerpt: "Andrew Quinn replaced a 3 GB SQLite database with a 10 MB FST binary. 300x smaller, same lookups. Here is when FSTs beat SQLite for static lookup data."
+draft: false
+lang: en
+---
+
+Andrew Quinn shipped a Finnish-English dictionary tool called Taskusanakirja that ran on a 3 GB SQLite database. The lookups were fast, the prefix search was fast, the disk footprint was 3 GB. He swapped the storage layer for a Finite State Transducer and the binary dropped to 10 MB. Same lookups. Same prefix search. Same product, 300 times smaller. The [write-up](https://til.andrew-quinn.me/posts/replacing-a-3-gb-sqlite-database-with-a-7-mb-fst-finite-state-trandsucer-binary/) is short and the substitution is dramatic enough that it stuck with me, but the lesson is not "FSTs beat SQLite." The lesson is that FSTs solve a specific class of problem better than any other data structure I know of, and that class shows up more often than the SQLite-first habit suggests.
+
+This article is the long version of that lesson. What an FST actually is, why Finnish made it shine, where it belongs in your toolkit, and where it does not.
+
+## What an FST is, mechanically
+
+An FST is a Finite State Transducer. The name is technically accurate and explains almost nothing, so here is the operational version: an FST is a graph of states connected by labelled edges, where every path through the graph represents a string in the data set, and where every state that two different strings share is the same state. If "running" and "runner" both have to go through a state representing "run" and then a state representing "n," those states are physically one state in memory, shared by both paths.
+
+A trie does the same thing for prefixes. Every word starting with "run" goes through the same "r-u-n" prefix path, and the trie shares the storage for those three nodes across every word that uses them. After the shared prefix, the trie branches and each suffix lives on its own.
+
+An FST shares both ends. The "ing" suffix on "running" is the same physical "ing" suffix on "swimming," "cooking," and every other word in the data set that ends in "ing." The middle of every word is the part the FST cannot share, but the prefix and the suffix collapse into the same graph nodes whenever they match. The result is a graph that is smaller than the data it represents, because the shared structure has been factored out.
+
+The construction algorithm is offline. You sort the input, then walk through it building the graph and merging any newly-introduced subtree with an existing equivalent subtree. The output is a minimal acyclic deterministic finite-state automaton: minimal because no two equivalent subtrees are kept separately, acyclic because there are no loops, deterministic because at any state and any input character there is exactly one transition.
+
+At lookup time you walk the graph one character at a time. If you reach a terminal state at the end of the input, the string is in the set, and you can attach a payload (the dictionary entry, the document ID, whatever the value is) to that terminal state.
+
+The transducer part is the bit that maps inputs to outputs. A pure FSA just answers "is this string in the set." An FST also returns a value. That is what makes it useful for dictionaries (input is the word, output is the definition) and indexes (input is the term, output is the document ID list).
+
+## Why Finnish made it shine
+
+Finnish is agglutinative. Words are built by stacking morphemes onto a stem, and the morphology is regular enough that "the dog" and "of the dog" and "to the dog" and "from the dog" and "without the dog" share the stem and differ by a regular ending. Finnish has 15 grammatical cases. Each case has singular and plural forms. Verbs conjugate by person, number, tense, mood, and several other axes. A single Finnish verb has hundreds of inflected forms, each one a distinct string.
+
+A 100,000-headword Finnish dictionary, expanded to include every inflection, runs to millions of entries. The entries are not random strings. They are all combinations of a few thousand stems and a few hundred ending patterns. The endings are shared by every word in their grammatical class.
+
+This is the case the FST was built for. The data has heavy regularity at both ends of every entry: a relatively small set of stems on the left, an even smaller set of suffix patterns on the right. The middle (the boundary between stem and ending) is the only part that differs across the entries that share a stem. An FST collapses both the shared stems and the shared suffix patterns into the same physical graph nodes. The compression is enormous precisely because the regularity is enormous.
+
+SQLite stores every row as a separate row. It does not know that "koiran" and "koiralle" and "koirasta" share four letters at the start and that "koiralle" and "kissalle" share four letters at the end. The B-tree index can find the rows efficiently, but the storage is still per-row, and the rows are mostly redundant.
+
+A trie would share the stems but not the suffixes. The "lle" ending on "koiralle" and "kissalle" would be stored twice, once in each path. For Finnish, this is more than half the data set duplicated. The FST does not duplicate it.
+
+300x is the specific number Andrew got on Taskusanakirja. Your compression ratio for a different data set is a function of how regular both ends of the entries are. Highly inflected languages with regular morphology (Finnish, Turkish, Hungarian, Korean) sit at the top of the range. English, with its limited inflection and its messy phonology, would land somewhere lower. Random alphanumeric identifiers would barely compress.
+
+## Where else FSTs win
+
+FSTs are the right data structure when you have a large set of strings, you query by exact match or by prefix, the data is static or rebuilt rarely, and the strings share structure at both ends. That description fits more workloads than the SQLite-first habit suggests.
+
+**Full-text search indexes.** Lucene has used FSTs since 2011 for its term dictionary. Tantivy uses them in Rust. Bleve uses them in Go. The term dictionary in a search index is exactly the case: large set of terms, shared prefixes (every word starting with "the"), shared suffixes (every -ing, -ed, -tion). The FST collapses both. Every modern full-text search engine ships an FST under the term dictionary because the alternatives are bigger and slower.
+
+**Routing tables.** Network prefixes and URL routing tables both have heavy prefix structure and frequent suffix repetition. An FST gives you the prefix match (longest matching prefix in a routing table) and the shared suffix compression in one structure. Software routers and reverse-proxy URL-matching code occasionally use FSTs; it is a quiet but real production pattern.
+
+**Edge-deployment caches and lookups.** When you need to ship a lookup table to a CDN edge or an embedded device, the size of the binary matters. A 10 MB binary that does the same job as a 3 GB database deploys in seconds rather than minutes, fits in a Docker layer that does not slow down rebuilds, and lives in memory on cheaper hardware. Cloudflare Workers, Fastly Compute@Edge, and similar platforms have memory limits that an FST routinely fits inside and a SQLite database often does not.
+
+**Spell checkers and autocomplete.** Same data shape: large word list, exact-match or prefix queries, suffix sharing. Hunspell uses morphology-aware dictionaries that share suffix structure; the underlying representation is FST-shaped. Browser autocomplete and IDE symbol completion are smaller-scale versions of the same workload.
+
+**Lexicons and ontology lookups.** Any time you have a vocabulary you query by term, an FST is at least worth benchmarking. Bioinformatics term ontologies, legal taxonomy lookups, product SKU resolvers, all candidates.
+
+The pattern: static data, large term count, prefix or exact-match queries, structural regularity. When all four hold, an FST is probably the right answer.
+
+## Where FSTs lose
+
+The constraint that pushes most decisions away from an FST is mutability. FSTs are static. The construction algorithm requires sorted input and produces a minimal automaton; adding a single new entry requires rebuilding the graph from scratch. There is no efficient in-place insert, no incremental update, no transactional write. If your data changes hourly, the FST gets rebuilt hourly. If it changes per request, the FST is the wrong structure.
+
+The other constraint is that FSTs are good at prefix and exact-match queries and less good at the queries SQLite handles for free. No range queries on payloads (you cannot ask "all words with definitions longer than 200 characters" against an FST). No joins. No aggregations. No transactions. The FST does one thing well, which is "look up this string and return its payload, fast." The moment you need another thing, you need another structure.
+
+The third constraint is that FSTs require sorted input at construction time. For a dictionary this is trivial; the input is already alphabetical or easily sorted. For a different data set, the sort may be the expensive step.
+
+The decision tree, simplified:
+
+- Static or rarely-rebuilt data + string lookups + structural regularity → FST.
+- Mutable data + complex queries → SQLite or a real database.
+- Mutable data + simple key-value access → an embedded KV store (RocksDB, LMDB).
+- Static data + exact-match only + no structural regularity → a perfect hash function (CHD, BBHash, mph) is smaller than an FST.
+
+The FST sits in the corner of that space where SQLite has been the default because nobody reached for the alternative. The 300x figure is what happens when you do reach.
+
+## What the substitution looks like in practice
+
+For Taskusanakirja, the substitution code is short. The Rust ecosystem has `fst`, BurntSushi's crate, which handles construction and query. The construction takes sorted input and writes a binary; the query loads the binary (memory-mapped, not read fully into RAM, which is part of why the disk size matters less than the binary size suggests) and answers queries by walking the graph.
+
+```rust
+use fst::{Map, MapBuilder};
+
+// Construction (offline, run once)
+let mut wtr = std::io::BufWriter::new(std::fs::File::create("dict.fst")?);
+let mut build = MapBuilder::new(wtr)?;
+
+// sorted_entries is a sorted iterator of (word, payload_id) pairs
+for (word, payload_id) in sorted_entries {
+    build.insert(word, payload_id)?;
+}
+build.finish()?;
+
+// Query (online, every request)
+let map = Map::new(std::fs::read("dict.fst")?)?;
+if let Some(payload_id) = map.get("koiralle") {
+    // look up the payload by id
+}
+```
+
+The payload here is a 64-bit integer, which is what the `fst` crate stores natively. The actual definition text lives in a separate file, indexed by payload ID. The FST is the lookup structure; the payload store can be whatever fits (a flat file, a memory-mapped block, a side-table). For a Finnish-English dictionary, the definition text compresses well too, so the total binary stays small.
+
+Prefix search is one method call:
+
+```rust
+let stream = map.search(fst::automaton::Str::new("koir").starts_with()).into_stream();
+```
+
+The stream walks every entry that starts with "koir" without instantiating the full set in memory. That is the property that makes the FST fast for autocomplete: the walk is bounded by the number of matches, not by the number of entries in the index.
+
+Construction takes seconds for the Finnish dictionary, minutes for a multimillion-entry full-text search index. Query latency is microseconds. The binary is memory-mapped, so the OS page cache handles working set efficiently, and a 10 MB binary fits entirely in RAM on any machine built in the past 20 years.
+
+## Why this matters more in 2026 than it did in 2016
+
+The FST is not a new data structure. The minimal acyclic DFA construction algorithm dates to the 1990s. BurntSushi's `fst` crate has been on crates.io since 2015. Lucene has used FSTs since 2011. The reason the substitution feels striking is that the surrounding world has shifted toward edge deployment, container size discipline, and self-hosting on small hardware, and FSTs are unusually well-suited to all three.
+
+A 3 GB SQLite binary in a Docker image is 3 GB of layer storage, 3 GB of network transfer on every pull, and 3 GB of cold-start memory before any query runs. A 10 MB FST binary is none of those. The decision used to be invisible because compute and storage were cheap and the SQLite default worked. Now the decision is visible because the deployment surface has gotten smaller and the binary size has become a property your CI cares about.
+
+The other shift is that we are deploying more things to more places. Edge runtimes, ARM single-board computers, Cloudflare Workers, embedded devices, browser-side tooling via WebAssembly. The FST works in all of them. The 10 MB binary loads in a browser tab. The same binary serves a CDN edge node. The same binary fits in the flash of a hobbyist embedded build. SQLite can do some of those, with effort. The FST does all of them, by default.
+
+This is not a "rewrite your databases in FST" article. The class of problem that fits an FST is narrow, and most workloads do not fit. What is worth doing is checking, the next time you reach for SQLite for a static lookup table, whether the FST belongs in the slot instead. The construction is one library call. The size difference, when it lands, is dramatic. The 300x in Andrew's case is not the ceiling.
+
+Read the [original Taskusanakirja write-up](https://til.andrew-quinn.me/posts/replacing-a-3-gb-sqlite-database-with-a-7-mb-fst-finite-state-trandsucer-binary/) for the specific Rust code and the construction performance numbers. BurntSushi's [blog post on the `fst` crate](https://blog.burntsushi.net/transducers/) is the longer technical introduction to the data structure if you want the algorithm in detail.
+
+---
+
+[Daniel Gustafsson](/about/daniel)

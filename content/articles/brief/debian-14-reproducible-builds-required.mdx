@@ -1,0 +1,67 @@
+---
+title: "Debian 14 makes reproducible builds a release requirement"
+format: brief
+slug: debian-14-reproducible-builds-required
+pathway: infrastructure-strategy
+tags:
+  - debian
+  - linux
+  - supply-chain
+  - security
+  - open-source
+  - reproducible-builds
+publishedAt: 2026-05-11T13:00:00+02:00
+excerpt: "On 10 May 2026, the Debian Release Team made reproducible builds a hard requirement for Debian 14 Forky. Non-reproducible packages are blocked from testing."
+draft: false
+lang: en
+---
+
+On 10 May 2026, the Debian Release Team announced that reproducible builds are now a release requirement for Debian 14 "Forky". The migration software has been updated to block packages from advancing to testing if they fail the reproducibility check or regress against a previous reproducible state. The announcement landed in `debian-devel-announce` and the enforcement is live as of yesterday in the release team's words. This is not a target. This is a gate.
+
+For ten years, the [Reproducible Builds](https://reproducible-builds.org/) project has worked toward making every Debian package buildable to the same bytes from the same source. The figure has been hovering around 96% for years. That last few percent is the work that just got teeth.
+
+## What "reproducible" actually means here
+
+A reproducible build is one where two independent compilations of the same source, in different environments, produce byte-for-byte identical output. The point is not aesthetic. The point is that you can audit the source, then audit the binary that ships, and verify they correspond, without trusting the build infrastructure. If two builds match, the binary is what the source says it should be, and an attacker who compromises a single build server cannot inject a backdoor into the shipped package without one of the other builds disagreeing.
+
+Reproducible builds is the part of supply chain security that addresses the build step itself, sitting alongside dependency provenance (SBOMs, sigstore) and signing (Debian's archive signing). Reproducibility is the bit that lets you verify, rather than just trust, that the binary in the archive came from the source in the archive.
+
+Sources of non-reproducibility are well-catalogued at this point: embedded timestamps, build paths, file ordering, locale-dependent output, parallelism non-determinism, random seeds, embedded hostnames or usernames. The Debian Reproducible Builds team has documentation and tooling (`diffoscope`, `reprotest`) that surfaces the cause for any specific package.
+
+## What changes for maintainers
+
+If you maintain a Debian package, the workflow change is direct. Before uploading to unstable, run the build twice in different environments and confirm the output matches. If it does not, the package will sit in unstable and not migrate to testing. The release team's automated migration scripts will refuse it.
+
+The tooling Debian recommends:
+
+```bash
+# Run a single test build that varies the environment
+reprotest 'dpkg-buildpackage -b' .
+
+# Compare two artefacts to find the source of non-reproducibility
+diffoscope build1.deb build2.deb
+```
+
+`reprotest` runs the build twice with deliberately varied environment (different build path, different hostname, different timezone, different locale, different umask) and reports whether the output matches. `diffoscope` produces a human-readable diff between two non-identical packages, which is how you locate the embedded timestamp or the build-path leak.
+
+For packages that have been reproducible all along, nothing changes. For the long tail that has not been fixed yet, "later" stopped being a valid migration plan on 10 May.
+
+## What changes for users
+
+For downstream users of Debian, nothing breaks immediately. Forky has not released yet. The change is to the migration policy inside the development workflow, not to the contract Debian offers to users.
+
+What changes downstream is the trust surface. Once Forky ships, every package in the release is one that has demonstrated it can be rebuilt to the same bytes. The Reproducible Builds project's verifier infrastructure can confirm any package against an independent rebuild. For organisations that want to verify Debian binaries against source before deployment, this is the missing piece. The infrastructure existed, but the guarantee that every package was actually reproducible did not, so the verifier had to be told what to skip. With Forky, there is no list of exceptions.
+
+Distributions downstream of Debian (Ubuntu, Kali, Tails, and the various derivative spins) inherit the reproducibility property from their Debian source packages, modulo their own changes. Ubuntu has its own reproducible-builds programme tracking the same goal on a longer timeline; Debian's gating decision likely accelerates Ubuntu's own work.
+
+## Why now
+
+The announcement frames it as "a small step in code, but a giant leap in commitment." That reads accurately. The code change is small because the infrastructure has been in place for years. The commitment is large because making reproducibility a release blocker creates real pain for the maintainers of the last few percent of packages, and the project decided that pain was worth shipping.
+
+The contributing pressures, not all named in the announcement:
+
+- The 2024 xz-utils backdoor showed that an attacker patient enough to compromise an upstream maintainer can inject malicious code into the source itself. Reproducible builds do not stop that attack, but they reduce the build-server attack surface so the source becomes the entire surface, which is the target the defender community can actually inspect.
+- SBOMs, SLSA, and supply-chain frameworks generally have moved from theory to procurement requirement over the past two years. EU CRA enforcement timelines are real. Reproducibility is the part of the SLSA pyramid that the distros are best positioned to deliver.
+- The Reproducible Builds project's tooling has matured to the point where `reprotest` and `diffoscope` give a clear maintainer experience. Ten years ago this would have been an unreasonable ask. Today it is a tedious one for the packages it affects, but the tedium is bounded.
+
+The announcement is short. The implications are large. Read the [debian-devel-announce post](https://lists.debian.org/debian-devel-announce/2026/05/msg00001.html) and the [Reproducible Builds project documentation](https://reproducible-builds.org/) for the tooling background.

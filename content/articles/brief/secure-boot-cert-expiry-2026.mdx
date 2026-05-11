@@ -1,0 +1,85 @@
+---
+title: "Secure Boot certs expire June 2026: May 12 can't slip"
+format: brief
+slug: secure-boot-cert-expiry-2026
+pathway: sysadmin-craft
+tags:
+  - windows
+  - secure-boot
+  - patch-tuesday
+  - uefi
+  - windows-update
+publishedAt: 2026-05-11T10:00:00+02:00
+excerpt: "Microsoft's 2011 Secure Boot certificates expire in June 2026. May 12 Patch Tuesday ships the 2023 replacements. Deferring to June leaves no margin."
+draft: false
+lang: en
+---
+
+The Microsoft Corporation KEK CA 2011 expires on 24 June 2026 and the Microsoft Corporation UEFI CA 2011 expires on 27 June 2026. The May 12 Patch Tuesday distributes the 2023 replacements through Windows Update. Systems that have not received the new certificates by those dates will continue to boot and continue to receive Windows updates, but they will run with degraded Secure Boot protection. That is the part that matters.
+
+If you are a Windows sysadmin running a fleet of any size, this Patch Tuesday is not one you can defer. Organisations that wait for the June cycle on 9 June will have 15 days to roll out to every endpoint, every server, and every OEM that needs a firmware update under it before the KEK CA expires. That timeline does not work for most environments.
+
+## What expires and what replaces it
+
+Two certificates in the Secure Boot trust chain expire in June 2026:
+
+- **Microsoft Corporation KEK CA 2011**, the Key Exchange Key authority that signs updates to the platform's allowed-and-forbidden lists (db and dbx). Expires 24 June 2026.
+- **Microsoft Corporation UEFI CA 2011**, the third-party UEFI CA that signs non-Microsoft bootloaders (Linux shim, OEM tooling, hardware vendor pre-boot software). Expires 27 June 2026.
+
+A third certificate, Microsoft Windows Production PCA 2011, expires in October 2026 and signs the Windows Boot Manager itself. The June expiry is the urgent one because losing the KEK CA breaks future db/dbx updates, and losing the UEFI CA breaks trust in third-party boot components.
+
+Replacements were issued in 2023. The May 12 update is the one that enrols them in firmware and updates the db so the new chain validates. The 2011 UEFI CA does not map to a single replacement: Microsoft split the role into two certificates in 2023, **Windows UEFI CA 2023** (which signs Windows boot loaders) and **Microsoft Option ROM UEFI CA 2023** (which signs option ROMs). Both need to be present in db for the full 2023 trust chain to validate.
+
+## What happens to systems that miss the deadline
+
+The machines keep running. They keep booting. They keep getting Windows updates. What they lose is the chain of trust that Secure Boot is built on.
+
+Practical consequences:
+
+- New db and dbx updates will no longer apply, because the KEK that authorises them is no longer trusted. This means BlackLotus-class bootkit revocations from after 24 June will not land on these systems.
+- Third-party UEFI binaries signed against the 2011 UEFI CA will no longer validate after 27 June. New OEM firmware tooling, new Linux shim versions, and new hardware-vendor pre-boot diagnostics may refuse to run.
+- BitLocker and Windows Defender System Guard, both of which depend on Secure Boot measurements, lose part of their threat model. They continue to function, but the underlying assumptions about firmware integrity weaken.
+- Regulated environments that require Secure Boot for compliance (some PCI-DSS, FedRAMP, and DoD configurations) will fall out of compliance once the certificates expire.
+
+None of this is the kind of failure that shows up in a monitoring dashboard. The machine works. The audit fails six months later.
+
+## Why this Patch Tuesday is harder than usual
+
+A normal Patch Tuesday on a managed fleet looks like this: WSUS or Intune pulls the updates, a pilot ring takes them on Tuesday, validation runs through the week, broader rings get them by the following Tuesday, and the long tail (servers with maintenance windows, edge devices, kiosks) gets them within four weeks. Six weeks for full deployment is normal in larger organisations.
+
+The 24 June deadline for the KEK CA is exactly six weeks and one day after 12 May. If your normal cycle takes six weeks, you have one day of slack. If your normal cycle takes longer than that, you are already late and you have not started yet.
+
+The June Patch Tuesday is 9 June. If you defer to that cycle, you have 15 days to roll out everywhere before the KEK CA expires. Subtract validation, subtract OEM firmware dependencies, subtract every endpoint that has been off the network for a week, and the 15 days disappears.
+
+## What sysadmins need to do this week
+
+1. **Verify your current Secure Boot certificate state.** PowerShell can enumerate what is in db and KEK on a running machine. Microsoft has published a survey script; running it across your fleet tells you which machines are at risk and which already have the 2023 certificates from earlier optional updates.
+2. **Identify OEM firmware dependencies.** Some systems need a firmware update from the hardware vendor in addition to the Windows update. Dell, HP, Lenovo, and ASUS have published advisories with model lists. Check yours before 12 May, not after.
+3. **Move the pilot ring forward.** If your standard pilot is Tuesday-to-Friday, compress it. The risk of the May 12 update breaking something is the same as any Patch Tuesday. The risk of skipping it is materially higher this month.
+4. **Plan the long tail.** Servers under change control, kiosks on a quarterly schedule, air-gapped systems, lab machines that nobody owns. Every one of those needs a path to the May 12 update before 26 June. The path may involve manual intervention. Start identifying owners now.
+5. **Document your exception list.** Some systems will not be updateable in time. Maintenance contracts, vendor-locked appliances, embedded devices. Make the list explicit before the deadlines, so the compliance conversation in July starts from a known position rather than a surprise.
+
+## What does not break
+
+Linux systems that boot with shim signed against the Microsoft UEFI CA 2011 are affected by the same chain expiry. Major distributions have already released shim versions signed against the 2023 CA. Ubuntu, Debian, Fedora, RHEL, and SUSE all shipped updates through 2024 and 2025. If your Linux fleet is current, you are likely already covered, but verify.
+
+macOS and ChromeOS do not use the Microsoft Secure Boot chain.
+
+VMware ESXi, Hyper-V, and other hypervisors run their guests with virtual Secure Boot that uses the same Microsoft certificates. The host firmware itself is a separate question; check your hypervisor vendor's advisory.
+
+Containers and Kubernetes nodes inherit Secure Boot state from the host. If the host is patched, the workloads on it are unaffected by the certificate expiry.
+
+## Verifying after the update lands
+
+After 12 May, on a patched Windows machine:
+
+```powershell
+Get-SecureBootUEFI -Name KEK | Format-List
+Get-SecureBootUEFI -Name db | Format-List
+```
+
+The KEK output should include an entry referencing "Microsoft Corporation KEK 2K CA 2023" alongside the older 2011 entry. The db output should include "Windows UEFI CA 2023" and "Microsoft Option ROM UEFI CA 2023". If you only see the 2011 entries, the certificate update has not enrolled yet, even if the Windows patch is installed. That is the failure mode to watch for.
+
+The enrolment is sometimes deferred to the next reboot, and on some OEM firmware it can require a second reboot before the new KEK persists. Bake at least one extra reboot into your validation plan.
+
+For broader context on the rollout and the certificate authorities involved, read the [Zecurit Patch Tuesday coverage](https://zecurit.com/endpoint-management/patch-tuesday/) and Microsoft's official Secure Boot certificate rollout guidance.
