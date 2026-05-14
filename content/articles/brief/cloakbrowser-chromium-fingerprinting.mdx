@@ -1,0 +1,53 @@
+---
+title: "CloakBrowser patches Chromium fingerprinting in C++"
+format: brief
+slug: cloakbrowser-chromium-fingerprinting
+pathway: dev-craft
+tags:
+  - chromium
+  - fingerprinting
+  - scraping
+  - browser-automation
+  - security
+  - open-source
+publishedAt: 2026-05-14T08:00:00+02:00
+excerpt: "CloakBrowser patches 49–57 Chromium fingerprinting vectors at the C++ level, not via JS. Bot detectors that assume JS-layer stealth are looking in the wrong place."
+draft: false
+lang: en
+---
+
+CloakBrowser is a modified Chromium binary that addresses the Chromium fingerprinting bypass problem at the source level — not through JavaScript injection or browser flags. Version 0.3.26, released 28 April 2026, applies 49 C++ patches on Linux x86_64 and Windows, and 57 on Linux ARM64. macOS gets 26 patches. The project hit GitHub Trending on 14 May with roughly 9,700 stars.
+
+The distinction from tools like `puppeteer-extra-plugin-stealth` is the layer where patching happens. JS-layer stealth injects overrides at runtime. A bot detector that runs before or around your JavaScript can observe the real values before the override takes effect, or detect the override itself as a signal. CloakBrowser modifies the values in the compiled Chromium binary so there is nothing to override at runtime.
+
+## What gets patched
+
+The 49–57 patches cover canvas fingerprinting, WebGL renderer and vendor strings, audio context output, font enumeration results, GPU information, screen and window properties, WebRTC IP leak behavior, network timing, automation detection signals, and Chrome DevTools Protocol input behavior. These are the vectors that bot detectors use to distinguish headless automation from a browser run by a human on a real machine.
+
+The project ships as a drop-in replacement for Playwright and Puppeteer. Installation is through pip or npm:
+
+```bash
+pip install cloakbrowser
+```
+
+```bash
+npm install cloakbrowser
+```
+
+A Docker image is also available. The wrapper downloads the platform-appropriate Chromium binary automatically.
+
+## What this changes for bot detection
+
+The standard mental model for bot detection is that you are looking for automation signals in the browser environment. Canvas noise, WebGL fingerprints, navigator properties that differ from a real Chrome installation — these are the tells. If those are patched at the binary level, the detection surface changes.
+
+What bot detectors can still observe: behavioral signals (mouse movement patterns, scroll velocity, timing of form interactions), network-level signals (ASN, datacenter IP ranges, request timing), and TLS fingerprinting. None of those are touched by CloakBrowser.
+
+The practical implication is that Chromium fingerprinting bypass via C++ patches closes the browser-identity layer of detection. It does not close the behavioral layer. For Cloudflare Turnstile and reCAPTCHA Enterprise, behavioral analysis is the part that matters. Whether CloakBrowser makes a meaningful dent against those specifically depends on the rest of the automation stack.
+
+## Who this is for
+
+The primary audience is developers building scrapers or test automation against sites with aggressive bot detection. Security researchers testing bot-detection implementations are the secondary group — if you want to know what Cloudflare Turnstile actually catches versus what it misses, running a patched Chromium binary is a reasonable starting point.
+
+Using automation tools against sites that prohibit it in their terms of service is a separate question that each operator has to answer for themselves.
+
+The source is at [github.com/CloakHQ/CloakBrowser](https://github.com/CloakHQ/CloakBrowser). The README documents the patch count per platform and includes a comparison against JS-layer stealth approaches.

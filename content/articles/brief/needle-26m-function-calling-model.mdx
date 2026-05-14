@@ -1,0 +1,53 @@
+---
+title: "Needle: a 26M model that beats 270M on tool calls"
+format: brief
+slug: needle-26m-function-calling-model
+pathway: dev-craft
+tags:
+  - ai
+  - function-calling
+  - edge-ml
+  - open-source
+  - agents
+  - small-models
+publishedAt: 2026-05-14T12:00:00+02:00
+excerpt: "Needle is a 26M parameter model that outperforms models ten times its size on single-shot function calling. It runs locally and costs almost nothing per call."
+draft: false
+lang: en
+---
+
+Needle is a 26-million-parameter model built specifically for function calling. On single-shot function call benchmarks, it outperforms FunctionGemma-270M, Qwen-0.6B, Granite-350M, and LFM2.5-350M — models between three and ten times its size. Cactus Compute published the model and the paper last week; the GitHub repository has 649 points on Hacker News.
+
+The small function calling model space has been moving fast, but Needle sits at an extreme end of the size-to-performance ratio that is worth understanding.
+
+## Architecture
+
+The model has 26M parameters across a 12-layer encoder and an 8-layer decoder. The encoder has no feed-forward networks — just attention. The decoder uses 8 heads with 4 key-value heads and a 512 hidden dimension. Vocabulary is 8,192 BPE tokens.
+
+That vocabulary size is narrow by design. Needle is not trying to model natural language breadth. It is trying to recognize function schemas, match arguments to parameters, and emit correctly structured calls — tasks where a small, focused vocabulary is an advantage rather than a limitation.
+
+## Training
+
+Pretraining ran on 16 TPU v6e chips for 27 hours over 200 billion tokens. Post-training on 2 billion function-call-specific tokens took 45 minutes. The model was distilled from Gemini 3.1.
+
+Inference speed on Cactus's own hardware: 6,000 tokens per second prefill, 1,200 tokens per second decode.
+
+## What this is and is not
+
+Needle is a routing and dispatch model, not a reasoning model. It handles the structured part of an agentic pipeline — receiving a task, selecting the right tool, and formatting the call correctly — but it does not generate reasoning, handle ambiguous instructions, or maintain conversation context.
+
+The benchmarks are single-shot function calling: given a schema and a task, produce the correct function call in one pass. That is a specific and real capability. It is also a narrow one. In conversational settings where tool selection depends on context accumulated across multiple turns, the benchmark advantage shrinks.
+
+The practical use case is cost-sensitive pipelines where function dispatch is the bottleneck. If you are paying for GPT-4o or Claude Sonnet API calls and a significant fraction of those calls are just resolving which tool to call with which arguments, replacing that step with a 26M local model is a meaningful cost reduction. The large model handles reasoning and response; Needle handles dispatch.
+
+## Running it
+
+The model runs locally. At 26M parameters it fits in CPU RAM without hardware acceleration. Cactus provides inference endpoints and the model weights are available through the repository.
+
+```bash
+pip install cactus-needle
+```
+
+The repository includes example code for Playwright-style function schemas and a comparison table against the benchmark models. The documentation is clear about what the model is not — the note that "larger models excel in conversational settings" is in the README, not buried in a paper appendix.
+
+The source is at [github.com/cactus-compute/needle](https://github.com/cactus-compute/needle).

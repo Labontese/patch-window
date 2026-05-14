@@ -1,0 +1,63 @@
+---
+title: "Switching my entire stack to European services"
+format: brief
+slug: eu-cloud-stack-migration-monokai
+pathway: dev-craft
+tags:
+  - cloud
+  - selfhosted
+  - gdpr
+  - europe
+  - scaleway
+  - devops
+  - infrastructure
+publishedAt: 2026-05-14T14:00:00+02:00
+excerpt: "Wimer Hazenberg migrated his full production stack from US to European cloud services. Here is what moved, what stayed, and the friction at each step."
+draft: false
+lang: en
+---
+
+Wimer Hazenberg — the designer behind the Monokai color scheme — published a detailed account of migrating his full production stack from US-based services to European cloud services. The article reached number one on Hacker News on 14 May 2026 with 903 points and 542 comments. The piece is useful not because it argues for European cloud services migration but because it documents the actual friction and actual cost at each step, including what he chose not to move and why.
+
+## What moved
+
+The complete list of migrations:
+
+| From | To | Notes |
+|---|---|---|
+| Google Analytics | Matomo | Self-hosted |
+| Google Workspace | Proton Mail | Switzerland |
+| 1Password | Proton Pass | Switzerland |
+| DigitalOcean | Scaleway | France |
+| Amazon S3 | Scaleway Object Storage | France |
+| Backblaze | OVHcloud | France, offsite backups |
+| Twilio SendGrid | Lettermint | European transactional email |
+| Sentry | Bugsink | Self-hosted error tracking |
+| OpenAI | Mistral | Paris-based AI API |
+| OpenAI (code) | Claude Code | Retained for AI coding assistance |
+
+The compute migration from DigitalOcean to Scaleway and the storage migration from S3 to Scaleway Object Storage are the operationally significant ones for most readers. Scaleway's S3-compatible API means the storage migration is largely a credential swap and an endpoint URL change — the tooling (boto3, s3cmd, rclone) does not need to change.
+
+## What stayed with US providers
+
+Three services stayed:
+
+**Cloudflare.** The reasoning is that data flowing through a CDN is already public by definition, so data-sovereignty concerns apply differently. The operational case for Cloudflare's DDoS protection and edge network is strong enough that no European equivalent clears the bar.
+
+**Stripe.** Still on the list to migrate. The complexity of billing, webhooks, and payment flow integrations makes this the hardest switch. Hazenberg flagged it as pending rather than resolved.
+
+**GitHub.** Retained for public npm packages and open-source issue tracking where, as he puts it, "network effects are real." GitLab is kept as primary source control with self-hosting described as on the roadmap.
+
+## What the HN reaction revealed
+
+The 542-comment thread is worth reading independently of the article. The main split is between engineers who completed similar migrations and found the operational overhead manageable, and those who found that European providers have meaningful gaps in tooling maturity, support response time, and regional redundancy compared to AWS and GCP. Neither camp is wrong — the gap varies by service category and by how much operational complexity you are willing to absorb.
+
+The jurisdictional case — GDPR compliance, FISA Section 702 and CLOUD Act exposure, and the audit requirements for enterprise customers in regulated industries — is the argument that does not depend on whether Scaleway's UX is as good as DigitalOcean's. For teams with customers in regulated industries, the migration is increasingly a procurement and legal requirement rather than a preference.
+
+## Practical starting points
+
+If you are evaluating a similar migration, the low-friction starting points are analytics (Matomo or Plausible are drop-in replacements operationally), object storage (S3-compatible APIs are the norm), and error tracking (Bugsink or Glitchtip are straightforward self-hosted Sentry alternatives).
+
+The high-friction points are transactional email (deliverability is hard to replicate at scale), payment processing, and anything where the US provider has ecosystem integrations that European alternatives do not.
+
+The full article is at [monokai.com/articles/how-i-moved-my-digital-stack-to-europe/](https://monokai.com/articles/how-i-moved-my-digital-stack-to-europe/).

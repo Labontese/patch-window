@@ -1,0 +1,62 @@
+---
+title: "BitLocker zero-day: no patch, PoC is public"
+format: brief
+slug: bitlocker-yellowkey-zero-day-no-patch
+pathway: sysadmin-craft
+tags:
+  - bitlocker
+  - windows
+  - security
+  - zero-day
+  - cve
+  - sysadmin
+  - endpoint
+publishedAt: 2026-05-14T16:00:00+02:00
+excerpt: "BitLocker zero-day YellowKey gives full read access to encrypted drives via USB. No patch as of May 2026 Patch Tuesday. TPM-only configs are the primary target."
+draft: false
+lang: en
+---
+
+A BitLocker zero-day named YellowKey was published on 13 May 2026 by a security researcher using the alias Nightmare-Eclipse. The proof-of-concept is public on GitHub. As of 14 May, Microsoft has not shipped a patch — May 2026 Patch Tuesday did not include a fix. The exploit targets Windows 11 and Windows Server 2022 and 2025.
+
+YellowKey gives an attacker a command shell with full read access to a BitLocker-encrypted volume without knowing the PIN. The companion exploit, GreenPlasma, is a separate privilege escalation to SYSTEM via arbitrary section creation in Windows CTFMON.
+
+## How it works
+
+The mechanism, confirmed by security researcher Will Dormann, is an abuse of NTFS transaction logs in combination with the Windows Recovery Environment (WinRE). During boot recovery, Windows automatically replays NTFS transaction logs. YellowKey places crafted FsTx (filesystem transaction) files on a USB drive. When the attacker boots the target machine to the recovery environment — which requires physical access — Windows processes those transaction logs, which delete the WinRE configuration file and launch a command shell instead. At that point the volume is still unlocked by the TPM, giving the shell full read access to the disk.
+
+The key constraint: **this works against TPM-only BitLocker configurations on the original device.** It does not work on a stolen drive in a different machine, and it does not work when TPM+PIN is enabled, because the TPM will not release the key without the PIN at boot. The researcher claims exploitation is possible in those scenarios through additional steps, but the published PoC addresses TPM-only.
+
+TPM-only is also the default configuration in most enterprise deployments. Microsoft's deployment guidance for managed endpoints recommends TPM-only because it requires no user interaction at boot — which is operationally convenient and, as this exploit demonstrates, a meaningful security trade-off.
+
+## What you can do right now
+
+There is no patch. The mitigations are configuration-level:
+
+**Enable TPM+PIN on every endpoint.** This closes the published PoC. The operational cost is that users need to enter a PIN at boot, which is non-trivial in large managed fleets — but it is the only reliable mitigation against physical-access attacks on BitLocker volumes. Group Policy path: `Computer Configuration > Administrative Templates > Windows Components > BitLocker Drive Encryption > Operating System Drives > Require additional authentication at startup`.
+
+**Disable the Windows Recovery Environment.** WinRE is the attack surface YellowKey requires. Disabling it prevents the exploit at the cost of losing recovery options.
+
+```cmd
+reagentc /disable
+```
+
+Verify the status with `reagentc /info`. This is a real trade-off: if a drive fails or a boot issue occurs, recovery options are gone. For high-security endpoints where physical access is a genuine threat model, it is worth considering.
+
+**Physical security is the primary control.** YellowKey requires booting the target machine to a recovery environment with a USB drive attached. Any physical access control that prevents an attacker from rebooting the machine — full-disk boot order locks, BIOS/UEFI passwords, physically secured hardware — reduces the attack surface.
+
+**Monitor for Nightmare-Eclipse's repository.** The researcher released YellowKey and GreenPlasma after claiming Microsoft ignored responsible disclosure. Additional exploits are possible. The researcher's history suggests the disclosure pattern will continue.
+
+## What does not help
+
+Standard AV and EDR do not catch this. The exploit executes before the OS loads. Bitdefender, CrowdStrike, and similar endpoint agents are not running when WinRE processes transaction logs. Network-level detection is also not applicable — the attack is fully local.
+
+Disabling USB boot in BIOS/UEFI does help, but only if the BIOS itself is password-protected. If an attacker can change BIOS settings, they can re-enable USB boot.
+
+## The broader issue
+
+The real finding here is not the specific exploit but what it confirms: TPM-only BitLocker does not protect against an attacker with physical access and a USB drive. That was arguable before. It is demonstrated now, with public PoC code, on the configuration Microsoft ships as default.
+
+For organizations whose threat model includes physical access — traveling executives, unattended endpoints, shared office spaces — the patch-level gap is less important than the configuration gap. TPM+PIN should have been default for those environments already. The immediate action is auditing which endpoints are running TPM-only and changing that before a patch exists, not waiting for one.
+
+Follow BleepingComputer's coverage for patch status updates.

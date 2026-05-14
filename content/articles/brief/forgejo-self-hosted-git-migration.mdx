@@ -1,0 +1,45 @@
+---
+title: "Why I moved my code hosting off GitHub"
+format: brief
+slug: forgejo-self-hosted-git-migration
+pathway: dev-craft
+tags:
+  - git
+  - selfhosted
+  - open-source
+  - forgejo
+  - github
+  - devops
+publishedAt: 2026-05-14T10:00:00+02:00
+excerpt: "Forgejo is a self-hosted Git forge with a GitHub-compatible API. Here is what the migration actually involves and why self-hosted git is a real choice again."
+draft: false
+lang: en
+---
+
+Forgejo is a self-hosted Git forge — issues, pull requests, CI/CD, and package registry — that you run on your own hardware. It is a community-driven fork of Gitea, currently at v15.0.2 LTS (released 12 May 2026, supported until July 2027), backed by Codeberg e.V., a German non-profit. The project lives on Codeberg rather than GitHub.
+
+The self-hosted git GitHub alternative conversation has been running for years, mostly at the level of principle. What changed recently is that engineers are documenting the actual migration — not the ideology, but the specifics of what breaks and what does not.
+
+## Why people are moving now
+
+The proximate triggers tend to cluster around three things. GitHub lost independent leadership in August 2025 when Thomas Dohmke stepped down as CEO and the company was absorbed into Microsoft's CoreAI division. In April 2026, GitHub changed the default for Copilot Free, Pro, and Pro+ users: interaction data — inputs, outputs, code snippets, context — is now used to train AI models unless you opt out. And US jurisdictional exposure under FISA Section 702 and the CLOUD Act is not something a GitHub configuration option can address.
+
+None of those are new risks. What is new is that the migration tooling has matured enough that the friction is lower than it was.
+
+## What the migration involves
+
+A realistic Forgejo self-hosted setup runs on modest hardware. One published configuration uses a single Intel NUC with PostgreSQL 17 and Traefik in Docker, plus a KVM virtual machine for the Actions runner. The resource requirements are low by design — Forgejo describes itself as requiring "an order of magnitude less resources" than competing forges.
+
+The migration path from GitHub covers repository imports, issues, pull requests, and wiki content. Forgejo's importer handles the GitHub API directly. What requires manual attention: Actions workflows that depend on GitHub-hosted runner environments, and any integrations that call GitHub's proprietary API surface rather than the standard Git protocol.
+
+One specific friction point worth knowing: `actions/checkout@v6` broke authenticated checkout on non-GitHub runners in early 2026. If your CI pipelines use that action, you need to pin to a compatible version or switch to Forgejo's native checkout action before migration.
+
+Webhooks, deploy keys, and OAuth applications all need to be reconfigured. That is expected. The Git protocol itself is portable — clone URLs change, history does not.
+
+## What to keep in mind about GitHub
+
+The network effects on GitHub are real, and not every repository belongs on a self-hosted forge. Public open-source projects where discoverability matters, packages published to npm or PyPI where the canonical source URL is meaningful, and issue trackers where contributors expect to find you — these are cases where staying on GitHub makes sense.
+
+The decision is not binary. Running Forgejo for private projects and internal tooling while keeping a GitHub presence for public-facing work is a reasonable split. What has changed is that the self-hosted side of that split is no longer the harder option to maintain.
+
+Forgejo's documentation is at [forgejo.org](https://forgejo.org). The migration guide covers imports from GitHub, GitLab, and Gitea. Jorijn van Dijk's migration write-up is a useful operational reference for the specific steps involved in a production setup.
