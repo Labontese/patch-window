@@ -93,7 +93,7 @@ jobs:
           echo "37.27.107.71 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDmT1loDtBXAFmZawL/vnQAP5K4LPnC7Ldw9M/7UNRBJ" >> ~/.ssh/known_hosts
 
           # Run CI deploy script on server
-          ssh -o IdentitiesOnly=yes deploy@37.27.107.71 \
+          ssh deploy@37.27.107.71 \
             "bash ~/server/scripts/ci-deploy-patchwindow.sh"
 
 # =============================================================
