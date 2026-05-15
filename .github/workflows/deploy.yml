@@ -80,14 +80,31 @@ jobs:
           docker rm patchwindow-smoke
           exit 1
 
+      - name: Deploy to server
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          # Set up SSH agent with deploy key
+          eval "$(ssh-agent -s)"
+          echo "$DEPLOY_SSH_KEY" | ssh-add -
+
+          # Add server to known_hosts (hardcoded fingerprint — avoids MITM risk)
+          mkdir -p ~/.ssh
+          echo "37.27.107.71 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDmT1loDtBXAFmZawL/vnQAP5K4LPnC7Ldw9M/7UNRBJ" >> ~/.ssh/known_hosts
+
+          # Run CI deploy script on server
+          ssh -o IdentitiesOnly=yes deploy@37.27.107.71 \
+            "bash ~/server/scripts/ci-deploy-patchwindow.sh"
+
 # =============================================================
 # Secrets som behövs på patchwindow-repot:
 #
 #   GITHUB_TOKEN  — automatisk, GitHub sköter auth mot GHCR
+#   DEPLOY_SSH_KEY — privat ed25519-nyckel för deploy@37.27.107.71
+#                    (publik nyckel: ~/.ssh/id_ed25519_github.pub på servern)
 #
 # Secrets som INTE längre behövs (kan rensas):
 #   DEPLOY_HOST   — användes av den gamla rsync-deployen
-#   DEPLOY_SSH_KEY — användes av den gamla rsync-deployen
 #
 # Runtime-secrets hanteras som env-vars på servern (ej i image):
 #   PATCHWINDOW_DATABASE_URL
