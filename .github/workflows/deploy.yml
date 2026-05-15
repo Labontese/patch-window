@@ -50,13 +50,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run DB migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          npm ci --ignore-scripts
-          npx drizzle-kit migrate
-
       - name: Smoke test
         run: |
           echo "Starting container for smoke test..."
