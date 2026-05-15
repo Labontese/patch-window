@@ -1,0 +1,62 @@
+---
+title: "arXiv Bans Authors for AI-Hallucinated Citations"
+format: hot-take
+slug: arxiv-hallucinated-refs-ban
+pathway: ai-in-practice
+tags:
+  - ai
+  - research
+  - llm
+  - arxiv
+  - hallucination
+  - policy
+  - academic
+publishedAt: 2026-05-15T10:00:00+02:00
+excerpt: "arXiv now bans authors for one year if their paper contains AI-hallucinated citations. After the ban, every submission requires prior peer review. The model is not responsible. You are."
+draft: false
+lang: en
+---
+
+arXiv is banning authors for a year if their paper contains fabricated citations. Not the tool that generated them. The author.
+
+That is the right call.
+
+The policy is blunt: submit a paper with AI-hallucinated references -- citations to papers that do not exist -- and you lose submission rights for twelve months. When that year is up, every future submission must have passed peer review at a recognized venue before it can go on arXiv. That second part is the real consequence. arXiv's preprint-first model is how most ML and CS research moves fast. Being locked out of that, permanently subject to a peer-review gate, is a significant career penalty.
+
+The policy statement is worth quoting directly: "By signing your name as an author of a paper, each author takes full responsibility for all its contents, irrespective of how the contents were generated."
+
+*Irrespective of how the contents were generated.* There is no "the LLM did it" clause.
+
+## The numbers are not abstract
+
+In 2023, roughly 1 in 2,828 papers on arXiv contained fabricated references. In early 2026, that figure is approximately 1 in 277. That is a tenfold increase in three years, tracking almost exactly with the adoption curve of AI writing tools.
+
+At NeurIPS 2025, GPTZero identified over 100 hallucinated citations across 53 accepted papers -- papers that had cleared review by at least three human reviewers each. A Lancet study covering more than 2 million papers found roughly 4,000 fabricated citations across 2,800 papers in the sample.
+
+This is not a tail-risk problem. It is a systemic one.
+
+## Why blaming the model is not a defense
+
+There is a version of this conversation where researchers argue that LLMs generating false citations is a tooling failure, not an author failure. That argument does not survive contact with what authorship actually means.
+
+When you submit a paper, you are asserting that the work is your own and that the claims it makes are accurate. A reference list is a set of claims. It asserts that specific papers exist, that they say what you imply they say, and that they support the argument you are making. Handing that responsibility to a language model and not checking the output is not a workflow optimization. It is negligence.
+
+The fact that GPT-4 or whatever model you used hallucinated a citation is not a defense any more than "my spell checker changed it" is a defense for a factual error. You signed the paper. You own it.
+
+## Who this actually hits
+
+Most researchers I talk to are not trying to commit fraud. They are using AI tools to speed up literature review and draft sections, and they are not doing a citation-by-citation verification pass before submission. That is the gap. The failure mode is not malice -- it is assuming the tool got it right.
+
+arXiv is now making that assumption expensive.
+
+The right response is not to stop using AI writing tools. It is to treat citation verification as a non-negotiable step before any submission, the same way you would run a spell check or proofread an abstract. Tools like Semantic Scholar, Elicit, and Connected Papers can help cross-reference citations against real databases. There is no excuse for submitting a reference list you have not spot-checked.
+
+## What comes next
+
+The pressure this creates on AI writing tool developers is real. If your tool generates citations and those citations can be fabricated, you have a liability problem for your users. Expect to see citation grounding -- references tied to verified sources in real time rather than generated from model weights -- become a hard requirement rather than a premium feature.
+
+For researchers: verify your reference lists before you submit. Every one of them. The model is not responsible for your paper. You are.
+
+---
+
+*Sources: [ByteIota: arXiv Bans Authors 1 Year for AI-Hallucinated Citations](https://byteiota.com/arxiv-bans-authors-1-year-for-ai-hallucinated-citations/); [404 Media: arXiv Changes Rules After Getting Spammed With AI-Generated Research Papers](https://www.404media.co/arxiv-changes-rules-after-getting-spammed-with-ai-generated-research-papers/); [arXiv hallucination paper: 2602.05867](https://arxiv.org/html/2602.05867v1)*
