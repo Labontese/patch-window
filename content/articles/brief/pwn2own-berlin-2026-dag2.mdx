@@ -1,0 +1,34 @@
+---
+title: "Pwn2Own Berlin Day 2: Exchange, Linux, and AI agents fall"
+format: brief
+slug: pwn2own-berlin-2026-dag2
+pathway: sysadmin-craft
+tags:
+  - security
+  - zero-day
+  - pwn2own
+  - exchange
+  - linux
+  - windows
+  - ai-security
+  - rhel
+  - sysadmin
+publishedAt: 2026-05-16T10:00:00+02:00
+excerpt: "Day 2 of Pwn2Own Berlin 2026 yielded 15 zero-days and $385,750 in prizes. Exchange fell to a three-bug RCE chain. Cursor AI and OpenAI Codex were exploited too."
+draft: false
+lang: en
+---
+
+On day two of Pwn2Own Berlin 2026, security researchers demonstrated 15 unique zero-days and collected $385,750 in prize money. The contest total now exceeds $1,000,000.
+
+The headline result came from Orange Tsai of DEVCORE, who chained three bugs to achieve remote code execution with SYSTEM privileges on Microsoft Exchange — worth $200,000. That is the maximum-severity outcome for an email server: unauthenticated remote code execution with the highest privilege level on the box.
+
+Red Hat Enterprise Linux fell to a privilege escalation to root ($10,000). Windows 11 was exploited via an integer overflow ($7,500). The NVIDIA Container Toolkit was hit with a use-after-free bug — prize amount not yet disclosed.
+
+The category that stands out: AI coding agents. Cursor AI was exploited twice — by Le Duc Anh Vu of Viettel Cyber Security ($30,000) and by Compass Security ($15,000). Sina Kheirkhah from Summoning Team demonstrated a zero-day against OpenAI Codex ($20,000). AI coding agents are now an established Pwn2Own target category, and they fell on day two.
+
+**What this means for practitioners:** All vendors now have 90 days to ship patches before full public disclosure. Exchange administrators should treat this as the start of a patch clock — the exploit details are known to the researchers and will become public in 90 days regardless of whether Microsoft patches. Teams running Cursor or Codex in any production or CI/CD context should track the disclosure closely.
+
+Day 3 targets include Windows 11, VMware ESXi, Red Hat Enterprise Linux, Microsoft SharePoint, and further AI coding agents.
+
+Source: [BleepingComputer — Pwn2Own Day Two](https://www.bleepingcomputer.com/news/security/pwn2own-day-two-hackers-demo-microsoft-exchange-windows-11-red-had-enterprise-linux-zero-days/)

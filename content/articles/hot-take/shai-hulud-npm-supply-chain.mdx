@@ -1,0 +1,65 @@
+---
+title: "SLSA signatures did not save you from Shai Hulud"
+format: hot-take
+slug: shai-hulud-npm-supply-chain
+pathway: devops-culture
+tags:
+  - supply-chain
+  - npm
+  - github-actions
+  - slsa
+  - security
+  - ci-cd
+  - devops
+publishedAt: 2026-05-16T12:00:00+02:00
+excerpt: "Over 160 npm packages were backdoored with valid SLSA Build Level 3 attestations. The trust model for GitHub Actions is broken -- here is what to fix."
+draft: false
+lang: en
+---
+
+The Shai Hulud campaign backdoored over 160 npm packages -- TanStack, Mistral AI, Bitwarden CLI, SAP -- and every one of them shipped with valid SLSA Build Level 3 attestations and legitimate GitHub Actions signatures. Your tooling said the packages were authentic. Your tooling was right. That is the problem.
+
+SLSA is a supply chain security framework built on a reasonable premise: if you can prove a package was built by a trusted CI system from a known source commit, you can trust it. Shai Hulud proved that premise wrong. TeamPCP did not forge the attestations. They earned them -- by taking control of the CI systems that issued them.
+
+## How they got in
+
+The attack ran a three-step chain. First: `pull_request_target` workflows. This GitHub Actions trigger runs with write access to the base repository even when the triggering pull request comes from a fork. It exists for valid reasons -- letting external contributors trigger CI without giving them secrets. But in thousands of repositories, that workflow has direct access to `GITHUB_TOKEN`, npm publish tokens, and cloud credentials. A pull request from a fork can reach all of it.
+
+From there: Actions cache poisoning. The runner state is shared across workflow runs in ways that are not obvious from the YAML. Injecting into the cache gives you execution in future runs without needing another PR.
+
+Final step: OIDC token theft from runner memory. The campaign collected credentials from over 100 file paths per runner. GitHub Actions OIDC tokens, AWS IAM credentials, Kubernetes service account tokens, HashiCorp Vault tokens, SSH keys, .env files. Aikido recorded 373 malicious package versions from this single campaign.
+
+Every build that ran after the initial compromise produced packages with signatures that verified clean. That is what Build Level 3 means: the build happened on a protected, ephemeral runner. It did not mean the runner was uncompromised.
+
+## The trust model assumption that failed
+
+SLSA attestations answer the question: "did a trusted build system produce this artifact?" They do not answer: "is the build system currently under adversary control?"
+
+It is an answer to a specific subset of supply chain attacks -- the ones where an attacker modifies source code or uploads a package directly. It is not an answer to an attacker who owns your CI pipeline. When your pipeline is the attack surface, attestations from that pipeline are evidence of compromise, not evidence of safety.
+
+## What to do right now
+
+If you run `pull_request_target` workflows, audit them this week. The fix is not complicated:
+
+```yaml
+# Do NOT do this in pull_request_target workflows
+- name: Build and publish
+  env:
+    NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+# Instead: gate on explicit approval, or split the workflow
+# pull_request_target for label/comment actions only
+# A separate push-to-protected-branch workflow handles publishing
+```
+
+The rule is simple: `pull_request_target` should never have access to publish tokens or cloud credentials. If your workflow needs both fork PR triggers and secrets, split them. The trigger and the secret access should not be in the same workflow file.
+
+Lock your runner environment. Use ephemeral runners where possible. Pin Actions to commit SHAs, not version tags. Audit what your runners write to the cache.
+
+Shai Hulud ran from September 2025 through May 2026. The packages are still in the registry. The misconfigurations that made this possible are in thousands of repositories right now. SLSA did not fail -- the assumption that a valid SLSA attestation means a safe build failed.
+
+Fix the workflow before the next campaign uses the same door.
+
+---
+
+*Sources: [Shai Hulud attack ships signed malicious TanStack, Mistral npm packages -- BleepingComputer, 2026-05-15](https://www.bleepingcomputer.com/news/security/shai-hulud-attack-ships-signed-malicious-tanstack-mistral-npm-packages/)*
