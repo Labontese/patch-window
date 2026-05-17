@@ -1,0 +1,125 @@
+---
+title: "How to harden your Wazuh cluster after the 2026 CVEs"
+format: guide
+slug: wazuh-cluster-hardening-2026
+pathway: security
+tags:
+  - wazuh
+  - siem
+  - security
+  - cluster
+  - hardening
+publishedAt: 2026-05-17T09:00:00+02:00
+excerpt: "How to lock down your wazuh cluster in 2026 after CVE-2026-25769 and CVE-2026-30893 — five concrete hardening steps for production deployments."
+draft: false
+lang: en
+---
+
+Wazuh shipped three security-driven releases in four months: 4.14.3 in February, 4.14.4 in March, 4.14.5 in April. Two of those releases patched cluster-layer vulnerabilities with CVSS scores above 9.0 — CVE-2026-25769 (9.1, insecure deserialization) and CVE-2026-30893 (9.0, path traversal). A third, CVE-2026-28221, adds a pre-auth stack overflow on TCP/1514 for anyone still running 4.14.4.
+
+Patching is necessary. It's not sufficient.
+
+Both cluster CVEs require an authenticated peer — meaning a compromised worker node is all the attacker needs to reach the master. If your cluster network exposure is wider than it needs to be, or your Fernet key isn't what you think it is, the patch alone doesn't close the window. In this guide, I'll walk through five hardening steps in order: version check, port restriction, Fernet key audit, worker node hygiene, and what the upcoming 5.0 release actually changes (and doesn't).
+
+## What the CVEs actually mean for your cluster
+
+Both CVEs share the same attack surface: TCP/1516, the Wazuh cluster protocol port, protected by a shared Fernet key. That key is how the master authenticates worker nodes.
+
+CVE-2026-25769, fixed in 4.14.3, is insecure deserialization in DAPI. An authenticated worker node can trigger RCE on the master as root. There's a public PoC and a TryHackMe room — this isn't theoretical anymore.
+
+CVE-2026-30893, fixed in 4.14.4, is a path traversal in `decompress_files()`. An authenticated worker can write arbitrary files to the master, then escalate by planting a malicious Python module in the Wazuh wodles path or a cronjob in a system directory.
+
+The shared framing matters: both CVEs require "authenticated peer" — which means any worker node that gets compromised puts your master at risk. The master trusts cluster peers completely once the Fernet key matches. That trust model has been flagged in the community since 2022. The CVEs are its consequences.
+
+## Step 1 — Verify you're on a patched version
+
+Before hardening anything, confirm you're running 4.14.5 on all manager nodes.
+
+```
+wazuh-manager --version
+```
+
+Or check the About page in the Wazuh dashboard. 4.14.5 is the cumulative fix for all three cluster CVEs across the 4.14.3, 4.14.4, and 4.14.5 releases. If you're on 4.14.4, you're still missing the CVE-2026-28221 fix — CVE-2026-28221 is pre-auth, reachable on TCP/1514, and that's the one that keeps me moving on upgrade timelines.
+
+If you're on anything below 4.14.3: stop here. Your cluster is actively vulnerable to a CVSS 9.1 RCE. Upgrade is the first priority, not this guide.
+
+The 4.14.4 → 4.14.5 path is a standard cumulative bump. No schema migration, no breaking config changes. Windows operators will see larger Syscollector logs because command arguments are now included — that's the only behavioral change worth noting before you roll it out.
+
+Full details in the [official 4.14.5 release notes](https://documentation.wazuh.com/current/release-notes/release-4-14-5.html) and the [Wazuh security advisories page](https://github.com/wazuh/wazuh/security/advisories).
+
+## Step 2 — Restrict the cluster port
+
+The default binds to `0.0.0.0`. Change that first.
+
+In the `<cluster>` block of `/var/ossec/etc/ossec.conf` on your master node, set `bind_addr` to the specific private interface the workers connect through:
+
+```xml
+<cluster>
+  <bind_addr>10.10.10.x</bind_addr>  <!-- your master's private IP -->
+</cluster>
+```
+
+If you're running a single-node cluster, bind to `127.0.0.1`.
+
+Alongside that config change, add a firewall rule that allows TCP/1516 only from known worker IPs and denies everything else. The cluster protocol has had limited external security review — even with the CVEs patched, exposing port 1516 beyond what the cluster actually needs is unnecessary attack surface.
+
+After changing `bind_addr`, restart `wazuh-manager` and verify all workers reconnect before you call it done. A worker that silently fails to reconnect will stop forwarding events without alerting you.
+
+## Step 3 — Audit your Fernet key
+
+Both CVEs require an authenticated cluster peer. The Fernet key is the authentication. If that key is weak or copied from documentation, the "authenticated" bar is lower than you think.
+
+The key lives in the `<key>` field inside the `<cluster>` block of `/var/ossec/etc/ossec.conf` — same value on all nodes. Check whether yours looks genuinely random or like something that was copied from a setup tutorial.
+
+To generate a proper key and rotate:
+
+```
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Update the master's config first, then push the new key to each worker and restart. This requires a maintenance window — workers will disconnect until their key matches the master. Plan accordingly.
+
+If any worker node was suspected compromised — not just patched, but actually suspected of being accessed by an attacker — key rotation is mandatory, not optional. A patched master with a known key is still a vulnerable cluster.
+
+## Step 4 — Treat your worker nodes as a security boundary
+
+This is the mindset shift the CVE coverage mostly missed. Both vulnerabilities are exploitable by any authenticated cluster peer. That means workers are now a threat vector for the master, not just nodes you manage.
+
+What this means in practice:
+
+Run Wazuh SCA checks on your worker nodes themselves, not just on the agents they monitor. Workers running outdated OS packages or misconfigured services are exactly the lateral movement path an attacker would use to get cluster credentials.
+
+Enable FIM on the worker node OS — specifically on `/var/ossec/` and system cron directories. CVE-2026-30893's path traversal vector writes to those paths. If a write lands there after your patch window, FIM is your first signal.
+
+If your architecture allows it, put workers on a separate VLAN or network segment from agent-facing traffic. Agents connect to workers to forward events — that's an inbound trust relationship you can't eliminate. But you can ensure that a compromised agent doesn't have a path to reach the cluster port on the master directly.
+
+For Proxmox-based lab setups, this is straightforward: run master and workers as separate VMs on isolated VLANs with explicit firewall rules between them. It's the same discipline you'd apply to any tiered security architecture.
+
+## Step 5 — What 5.0 changes (and what it doesn't)
+
+If you've been following the Wazuh 5.0 coverage, you might be wondering whether migrating to 5.0 makes this guide irrelevant. It doesn't.
+
+5.0 removes the `wazuh-db-sync` pathways between nodes, which incidentally reduces the cluster attack surface in some areas. But DAPI — the code path where CVE-2026-25769 lived — is explicitly kept in 5.0. And `decompress_files()`, the function at the center of CVE-2026-30893, is not removed either.
+
+5.0 was architected starting in September 2024. These CVEs weren't discovered until 2026. The 5.0 architecture predates them by over a year. That's not a criticism — it's the sequencing. 5.0 is a modernization project, not a security response. Migrating to 5.0 does not replace these hardening steps.
+
+5.0.0-beta1 is currently in beta with no production recommendation from Wazuh. Do the hardening now on 4.14.x. Revisit cluster configuration when 5.0 reaches stable and the security advisories page catches up.
+
+For more context on 5.0's architecture direction, see [our Wazuh 4.14.5 coverage](/brief/wazuh-4-14-5-released).
+
+## Hardening checklist
+
+- [ ] Running Wazuh 4.14.5 or later on all manager nodes
+- [ ] `bind_addr` set to a specific interface IP, not `0.0.0.0`
+- [ ] TCP/1516 firewalled to known worker IPs only
+- [ ] Fernet key is genuinely random and not copied from documentation
+- [ ] Fernet key rotation completed if any worker node was suspected compromised
+- [ ] SCA checks running on worker nodes themselves, not just monitored agents
+- [ ] FIM enabled on worker node OS paths (`/var/ossec/`, system cron directories)
+- [ ] Worker nodes on a separate network segment or VLAN from agent-facing traffic
+
+---
+
+Two CVSS 9.0+ vulnerabilities in the same cluster protocol within 60 days is a signal, not a coincidence. The cluster protocol has had limited security review for years, and these CVEs are the visible result. The patch closes the known holes. The configuration keeps you ahead of the ones that haven't been found yet.
+
+For the full patch context and CVE disclosure timeline, see [Wazuh 4.14.5: a security patch they didn't call a security patch](/brief/wazuh-4-14-5-released).
