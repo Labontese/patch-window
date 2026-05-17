@@ -1,0 +1,140 @@
+---
+title: "Three Linux kernel LPEs in 14 days: triage guide"
+format: deep-dive
+slug: linux-lpe-triage-may-2026
+pathway: sysadmin-craft
+tags:
+  - linux
+  - kernel
+  - lpe
+  - cve
+  - patch-management
+publishedAt: 2026-05-17T12:00:00+02:00
+excerpt: "Three Linux kernel LPEs in 14 days. This is a triage guide for sysadmins deciding which reboot to schedule first — and what to do until you can."
+draft: false
+lang: en
+---
+
+Three Linux kernel local privilege escalation vulnerabilities in fourteen days. Copy Fail on April 29, Dirty Frag on May 7–8, Fragnesia on May 13. All three have public proof-of-concept exploits. All three let an unprivileged local user reach root.
+
+This is not a news summary. If you run Linux in production, you already know these exist. The question you are facing right now is: how do I prioritize three kernel reboots in three weeks without breaking my SLA or my sleep schedule?
+
+That is what this document addresses.
+
+## The three CVEs at a glance
+
+| CVE | Name | Disclosed | Mechanism | Affected kernels | Patch available? |
+|---|---|---|---|---|---|
+| CVE-2026-31431 | Copy Fail | Apr 29 | `authencesn` scratch-byte write via `algif_aead` hits page-cache of setuid binaries | 4.14–6.17 | Yes — all major distros |
+| CVE-2026-43284 / 43500 | Dirty Frag | May 7–8 | Two page-cache write primitives in xfrm-ESP (IPsec) and RxRPC subsystems, chained for LPE | Kernels since 2017 (ESP) / 2023 (RxRPC) | Yes — all major distros |
+| CVE-2026-46300 | Fragnesia | May 13 | `skb_try_coalesce()` drops `SKBFL_SHARED_FRAG` marker during fragment transfer; allows page-cache corruption of read-only files including setuid binaries | All kernels carrying affected skbuff code, including those with only the Dirty Frag patch | Yes — AlmaLinux; Ubuntu/RHEL in progress |
+
+For Copy Fail mechanics in depth, see [our Copy Fail coverage](/brief/cve-2026-31431-copy-fail-linux-lpe).
+
+Dirty Frag was discovered by Hyunwoo Kim (@v4bel) and explicitly inspired by Copy Fail — the xfrm-ESP write primitive shares the same sink. Fragnesia was then accidentally activated by the patch that fixed Dirty Frag's CVE-2026-43284 component. One patch introducing the next vulnerability is not a coincidence you can dismiss.
+
+## Who's most exposed
+
+The phrase "local privilege escalation" sounds manageable until you think through what "local user" means in your environment.
+
+**Multi-tenant Linux hosts** are the highest risk. Shared hosting panels, VPS providers that offer SSH access, and any machine where untrusted users have shell accounts are directly exposed. A customer, a contractor, or a compromised application account can trivially pivot to root with a single command.
+
+**Container environments without strong isolation** are a real concern. Dirty Frag requires `CAP_NET_ADMIN` to load the `esp4`/`esp6` modules — that capability is not present in default Docker or Kubernetes seccomp profiles. But containers run with elevated capabilities more often than people admit: privileged pods, debug containers, and helm charts that request `NET_ADMIN` for overlay networking. If any workload in your cluster has `CAP_NET_ADMIN`, assume the node kernel is reachable. Fragnesia targets XFRM ESP-in-TCP and shares the same module dependency, so the same exposure model applies.
+
+**CI/CD runners** deserve special attention. Many teams run ephemeral build agents on bare metal or VMs where build scripts execute as a non-root service account. That service account is exactly the threat model these exploits target.
+
+**The setuid binary angle is important.** These exploits do not write to disk. They corrupt the in-memory page cache of executables like `/usr/bin/su`, `/usr/bin/sudo`, or `/usr/bin/passwd`. The on-disk binary stays clean. Your file integrity monitoring will not alert. The attack surface is the kernel memory management layer, not the filesystem.
+
+## If you can't reboot production right now
+
+The shared interim mitigation across all three CVEs is module blacklisting. Dirty Frag and Fragnesia both require the `esp4`, `esp6`, and `rxrpc` kernel modules to be loaded. Copy Fail's `algif_aead` is typically compiled in rather than a loadable module, making it different — but if you are not yet patched for Copy Fail, check first with `grep CONFIG_CRYPTO_USER_API_AEAD /boot/config-$(uname -r)`.
+
+For Dirty Frag and Fragnesia, apply this once and it covers both:
+
+```bash
+sudo tee /etc/modprobe.d/lpe-may2026.conf << 'EOF'
+install esp4 /bin/false
+install esp6 /bin/false
+install rxrpc /bin/false
+EOF
+sudo update-initramfs -u   # Debian/Ubuntu
+# sudo dracut -f           # RHEL/AlmaLinux
+```
+
+Then attempt to unload currently running modules:
+
+```bash
+sudo rmmod rxrpc esp6 esp4 2>/dev/null || true
+```
+
+If `rmmod` returns "Module is in use," a reboot is required to activate the blacklist. On systems with active IPsec VPN tunnels (strongSwan, Libreswan), this will break the tunnel. WireGuard is unaffected — it does not use these modules.
+
+**Sysctl mitigations** are not available for these vulnerabilities. There is no kernel flag that disables the affected code paths without removing the modules.
+
+**What this does not protect:** The blacklist has no effect on Copy Fail. If you have not patched CVE-2026-31431 and `algif_aead` is built-in, you need either a full kernel update or a seccomp/AppArmor policy blocking `socket(AF_ALG, ...)`. The blacklist approach also does nothing for any workload that legitimately loads `esp4`/`esp6` at runtime — it prevents loading but cannot evict a module already in use.
+
+## Live patching — does it cover all three?
+
+Live patching is the cleanest answer to "I can't reboot production." But coverage is uneven across the three CVEs and across vendors.
+
+**KernelCare (TuxCare)**
+
+KernelCare released live patches for Dirty Frag (CVE-2026-43284 / CVE-2026-43500) within 24 hours of disclosure across EL8, EL9, Ubuntu 22.04, Debian 12, and Proxmox VE 7/8. For Fragnesia (CVE-2026-46300), the first rebootless patches landed on May 14 for CloudLinux 9 ELS and AlmaLinux 9 ESU (testing feed), with production-feed rollout following. Verify coverage:
+
+```bash
+kcarectl --patch-info | grep -E "cve-2026-43284|cve-2026-43500|cve-2026-46300"
+```
+
+**Canonical Livepatch**
+
+Canonical published Dirty Frag patches for Ubuntu 22.04 and 24.04. Fragnesia coverage was listed as "needs evaluation" at the time of Fragnesia's disclosure on May 13 — check the Ubuntu CVE tracker at ubuntu.com/security/CVE-2026-46300 for current status. Copy Fail (CVE-2026-31431) has been covered by Canonical Livepatch since early May.
+
+**What live patching does not cover**
+
+Live patches are applied to running kernel text. If a module like `esp4` is already loaded and the vulnerable code path is in active use, applying a live patch while a connection is in flight carries a small race window. TuxCare's guidance is to apply the blacklist as an interim measure and then verify the live patch took effect before removing the blacklist. For Fragnesia specifically, the upstream patch was on the netdev mailing list awaiting review at the time of disclosure — live patch vendors are working ahead of most distribution updates, but the full upstream integration is still in progress.
+
+## Patch priority matrix
+
+| System type | Untrusted local users? | IPsec/VPN in use? | Priority |
+|---|---|---|---|
+| Shared hosting / VPS with SSH access | Yes | Unlikely | **Patch immediately — highest risk** |
+| CI/CD runner, build agent | Yes (build scripts) | No | **Patch immediately** |
+| Kubernetes node with privileged pods | Partial | Possibly | **Patch within 48h; blacklist modules now** |
+| Bare-metal / VM, single-tenant, no external SSH | No | No | **Patch within maintenance window; blacklist now** |
+| Bare-metal with active IPsec VPN | No | Yes | **Test blacklist impact on VPN before applying; schedule reboot ASAP** |
+| Managed cloud VMs (GKE/EKS/AKS nodes) | No | No | **Update node image; roll nodes** |
+| Air-gapped internal servers | No | No | **Normal patch cycle; blacklist as precaution** |
+
+Read the "Patch available?" column in the CVE table above before scheduling. As of May 17, AlmaLinux has shipped patches for all three CVEs. Ubuntu and RHEL have patches for Copy Fail and Dirty Frag; Fragnesia patches are rolling out. Debian 12 has Copy Fail covered; track the security tracker at security-tracker.debian.org for the others.
+
+## Checklist
+
+**Immediate (today)**
+
+- [ ] Apply the `esp4`/`esp6`/`rxrpc` blacklist on all hosts not yet patched for Dirty Frag or Fragnesia
+- [ ] Run `kcarectl --patch-info | grep cve-2026` if you have KernelCare; confirm all three CVEs show as patched
+- [ ] Identify any host with untrusted shell access — these go to the top of your reboot queue
+- [ ] Check for privileged pods or containers with `CAP_NET_ADMIN` in your Kubernetes clusters
+
+**Before the next maintenance window**
+
+- [ ] Patch and reboot hosts in priority order from the matrix above
+- [ ] After rebooting, verify with `uname -r` and compare against fixed versions for your distro
+- [ ] Remove the module blacklist file after confirming the patched kernel is running
+- [ ] Update node images for managed Kubernetes clusters
+
+**Ongoing**
+
+- [ ] Subscribe to errata feeds for your distributions (RHEL, Ubuntu, Debian, AlmaLinux)
+- [ ] Check Fragnesia patch status for Ubuntu and RHEL — patches are expected within days
+- [ ] Review container workload capabilities and remove `CAP_NET_ADMIN` where not strictly required
+
+## Three in three weeks is a signal
+
+Copy Fail, Dirty Frag, Fragnesia. Three CVEs. One bug class. One researcher inspired the next, and a patch for one introduced the surface for the third. This is not a run of bad luck. It is a sign that the Linux kernel's page-cache interaction with network subsystems is under active scrutiny right now.
+
+The xfrm/ESP and RxRPC code paths have existed for years without serious public attention. That changed in late April. Expect more researchers working this area. The module blacklist buying you time today may need to become a permanent architectural decision on hosts where IPsec is not required.
+
+If you have been deferring kernel update discipline — fragmented maintenance windows, manual processes, no live patching — this month is a good argument for fixing that. Three reboots in three weeks at emergency pace is more disruptive than a monthly patching cadence at planned pace.
+
+Patch the exposed hosts first. Get the blacklist on everything else. Then fix the process.
