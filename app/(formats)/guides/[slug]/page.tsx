@@ -79,6 +79,45 @@ export default async function GuidePage({ params }: Props) {
     articleSection: 'Guide',
   }
 
+  const faqJsonLd = slug === 'wazuh-cluster-hardening-2026' ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Does upgrading to Wazuh 5.0 replace these hardening steps?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. Wazuh 5.0 was architected before CVE-2026-25769 and CVE-2026-30893 were discovered. DAPI — the code path where CVE-2026-25769 lived — is kept in 5.0. The hardening steps in this guide apply to 4.14.x and will remain relevant after migrating to 5.0.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'What port does the Wazuh cluster protocol use?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'TCP/1516. This is the cluster communication port between master and worker nodes, protected by a shared Fernet key. By default it binds to 0.0.0.0 — restrict it to specific internal IPs as the first hardening step.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'What is the Wazuh Fernet key and how do I rotate it?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: "The Fernet key is a shared secret stored in the cluster block of /var/ossec/etc/ossec.conf on all nodes. It authenticates cluster peers. To rotate: generate a new key with python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())', update the master first, then all workers, and restart. Requires a brief maintenance window.",
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Which Wazuh versions are affected by CVE-2026-25769?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Wazuh 4.0.0 through 4.14.2 are affected. The fix shipped in 4.14.3 (February 2026). The vulnerability is insecure deserialization in DAPI that allows an authenticated worker node to achieve RCE on the master as root. A public proof-of-concept exists.',
+        },
+      },
+    ],
+  } : null
+
   return (
     <>
       <InnerHeader />
@@ -143,6 +182,12 @@ export default async function GuidePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}
       />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(faqJsonLd) }}
+        />
+      )}
     </>
   )
 }
