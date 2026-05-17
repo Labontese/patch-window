@@ -14,12 +14,12 @@ interface Props {
 }
 
 export async function generateStaticParams() {
-  return getArticlesByFormat('guide').map((a) => ({ slug: a.slug }))
+  return getArticlesByFormat('guides').map((a) => ({ slug: a.slug }))
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const meta = getArticleByFormatAndSlug('guide', slug)
+  const meta = getArticleByFormatAndSlug('guides', slug)
   if (!meta) return {}
 
   const url = `https://patchwindow.serverdigital.net/guides/${slug}`
@@ -48,10 +48,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function GuidePage({ params }: Props) {
   const { slug } = await params
-  const meta = getArticleByFormatAndSlug('guide', slug)
+  const meta = getArticleByFormatAndSlug('guides', slug)
   if (!meta) notFound()
 
-  const { default: Content } = await import(`@/content/articles/guide/${slug}.mdx`)
+  const { default: Content } = await import(`@/content/articles/guides/${slug}.mdx`)
 
   const articleJsonLd = {
     '@context': 'https://schema.org',

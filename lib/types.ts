@@ -40,7 +40,7 @@ export function slugToTitle(slug: string): string {
     .join(' ')
 }
 
-export const FORMATS = ['hot-take', 'deep-dive', 'brief', 'guide'] as const
+export const FORMATS = ['hot-take', 'deep-dive', 'brief', 'guides'] as const
 export type Format = (typeof FORMATS)[number]
 
 export interface ArticleFrontmatter {

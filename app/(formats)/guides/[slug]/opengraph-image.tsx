@@ -13,7 +13,7 @@ type Props = {
 
 export default async function OgImage({ params }: Props) {
   const { slug } = await params
-  const article = getArticleByFormatAndSlug('guide', slug)
+  const article = getArticleByFormatAndSlug('guides', slug)
   const title = article?.title ?? 'Patch Window'
 
   if (article?.image) {
