@@ -5,6 +5,7 @@ export const PATHWAYS = [
   'devops-culture',
   'homelab-edge',
   'accessibility',
+  'security',
 ] as const
 
 export type Pathway = (typeof PATHWAYS)[number]
@@ -19,6 +20,7 @@ export const PATHWAY_DISPLAY_NAMES: Record<Pathway, string> = {
   'devops-culture': 'DevOps Culture',
   'homelab-edge': 'Homelab & Edge',
   accessibility: 'Accessibility',
+  security: 'Security',
 }
 
 export function getPathwayDisplayName(slug: string): string {
@@ -38,7 +40,7 @@ export function slugToTitle(slug: string): string {
     .join(' ')
 }
 
-export const FORMATS = ['hot-take', 'deep-dive', 'brief'] as const
+export const FORMATS = ['hot-take', 'deep-dive', 'brief', 'guide'] as const
 export type Format = (typeof FORMATS)[number]
 
 export interface ArticleFrontmatter {

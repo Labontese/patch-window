@@ -4,6 +4,7 @@ const LABELS: Record<Format, string> = {
   'hot-take': 'HOT TAKE',
   'deep-dive': 'DEEP DIVE',
   'brief': 'BRIEF',
+  'guide': 'GUIDE',
 }
 
 interface Props {
