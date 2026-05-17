@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: 'Patch Window: Linux, DevOps & AI in production homelabs',
   description:
     'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
-  alternates: { canonical: '/' },
+  alternates: { canonical: 'https://patchwindow.serverdigital.net/' },
   openGraph: {
     type: 'website',
     title: 'Patch Window: Linux, DevOps & AI in production homelabs',

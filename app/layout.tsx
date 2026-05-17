@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: 'Patch Window',
-    template: '%s | Patch Window',
+    template: '%s | PW',
   },
   description:
     'Linux, networking, containers, DevOps, and AI in production environments. Written by a practitioner.',
