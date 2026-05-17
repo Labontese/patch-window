@@ -1,0 +1,148 @@
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { getArticleByFormatAndSlug, getArticlesByFormat } from '@/lib/articles'
+import InnerHeader from '@/components/InnerHeader'
+import Footer from '@/components/Footer'
+import ArticleHeader from '@/components/ArticleHeader'
+import AuthorBio from '@/components/AuthorBio'
+import Breadcrumbs from '@/components/Breadcrumbs'
+import { safeJsonLd } from '@/lib/jsonld'
+
+interface Props {
+  params: Promise<{ slug: string }>
+}
+
+export async function generateStaticParams() {
+  return getArticlesByFormat('guide').map((a) => ({ slug: a.slug }))
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const meta = getArticleByFormatAndSlug('guide', slug)
+  if (!meta) return {}
+
+  const url = `https://patchwindow.serverdigital.net/guides/${slug}`
+
+  return {
+    title: meta.title,
+    alternates: { canonical: url },
+    description: meta.excerpt,
+    openGraph: {
+      title: meta.title,
+      description: meta.excerpt,
+      type: 'article',
+      url,
+      publishedTime: meta.publishedAt,
+      modifiedTime: meta.updatedAt,
+      tags: meta.tags,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      creator: '@DanneGsson',
+      title: meta.title,
+      description: meta.excerpt,
+    },
+  }
+}
+
+export default async function GuidePage({ params }: Props) {
+  const { slug } = await params
+  const meta = getArticleByFormatAndSlug('guide', slug)
+  if (!meta) notFound()
+
+  const { default: Content } = await import(`@/content/articles/guide/${slug}.mdx`)
+
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    headline: meta.title,
+    description: meta.excerpt,
+    image: 'https://patchwindow.serverdigital.net/opengraph-image.png',
+    datePublished: meta.publishedAt,
+    dateModified: meta.updatedAt ?? meta.publishedAt,
+    author: {
+      '@type': 'Person',
+      name: 'Daniel Gustafsson',
+      url: 'https://patchwindow.serverdigital.net/about/daniel',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Patch Window',
+      logo: { '@type': 'ImageObject', url: 'https://patchwindow.serverdigital.net/logo/logo.png', width: 600, height: 60 },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `https://patchwindow.serverdigital.net/guides/${slug}`,
+    },
+    keywords: meta.tags,
+    articleSection: 'Guide',
+  }
+
+  return (
+    <>
+      <InnerHeader />
+      <main id="main-content" className="site-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '2.5rem' }}>
+        <Breadcrumbs
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Guides', href: '/guides' },
+            { label: meta.title },
+          ]}
+        />
+        <div className="article-layout article-layout--with-sidebar">
+          <article className="content-col">
+            <ArticleHeader meta={meta} />
+            <div className="article-body">
+              <Content />
+            </div>
+            <AuthorBio />
+          </article>
+          <aside className="article-sidebar" aria-label="Article metadata">
+            <div style={{ marginBottom: '1.5rem' }}>
+              <p style={{ fontWeight: 700, marginBottom: '0.25rem', color: 'var(--color-text)' }}>
+                Pathway
+              </p>
+              <Link
+                href={`/pathway/${meta.pathway}`}
+                className="pathway-badge"
+                data-umami-event="pathway-click"
+                data-umami-event-pathway={meta.pathway}
+              >
+                {meta.pathway}
+              </Link>
+            </div>
+            {meta.tags.length > 0 && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <p style={{ fontWeight: 700, marginBottom: '0.5rem', color: 'var(--color-text)' }}>
+                  Tags
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                  {meta.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/tag/${tag}`}
+                      className="tag-pill"
+                      data-umami-event="tag-click"
+                      data-umami-event-tag={tag}
+                    >
+                      {tag}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+            {meta.readingTime && (
+              <p className="reading-time">{meta.readingTime} min read</p>
+            )}
+          </aside>
+        </div>
+      </main>
+      <Footer />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}
+      />
+    </>
+  )
+}
