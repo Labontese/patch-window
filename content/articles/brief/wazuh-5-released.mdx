@@ -10,6 +10,11 @@ tags:
   - monitoring
 publishedAt: 2026-04-15T09:00:00+02:00
 excerpt: "Wazuh 5.0 beta1 shipped April 2026 with a rewritten agent communication layer and a new built-in indexer. Upgrade from 4.x requires a full stack restart."
+related:
+  - format: guides
+    slug: wazuh-cluster-hardening-2026
+  - format: brief
+    slug: wazuh-4-14-5-released
 draft: false
 lang: en
 ---
@@ -23,3 +28,5 @@ For homelab users running Wazuh manager on a single VM: the upgrade script handl
 The full release notes and upgrade guide are at [wazuh.com/blog](https://wazuh.com/blog). The agent compatibility matrix is in the [upgrade documentation](https://documentation.wazuh.com/current/upgrade-guide/).
 
 Worth watching: how the new indexer performs under high event volume. The OpenSearch version it replaces had known memory pressure issues above roughly 50,000 events per second on small instances. Wazuh's release notes claim improvements there but don't give specific numbers.
+
+If you're staying on 4.14.x for now, the 4.14.3–4.14.5 patch cycle fixed two critical cluster CVEs. See [how to harden your Wazuh cluster after the 2026 CVEs](/guides/wazuh-cluster-hardening-2026) for the configuration steps that go beyond patching.
