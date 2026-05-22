@@ -1,0 +1,68 @@
+---
+title: "rsync 3.4.3 patches six CVEs, two reachable without daemon mode"
+format: hot-take
+slug: rsync-343-six-cves-two-reachable-without-daemon
+pathway: security
+tags:
+  - rsync
+  - cve-2026-43618
+  - cve-2026-43620
+  - cve-2026-29518
+  - cve-2026-43617
+  - cve-2026-43619
+  - cve-2026-45232
+  - file-transfer
+  - security
+publishedAt: 2026-05-23T09:00:00+02:00
+excerpt: "rsync 3.4.3 fixes six CVEs released May 20. CVE-2026-43618 (CVSS 8.1) leaks client memory from any pull against a malicious server -- no daemon config required."
+draft: false
+lang: en
+---
+
+rsync 3.4.3 landed on May 20 with fixes for six CVEs. Two of them do not require you to run rsync in daemon mode. If you sync against any server you do not fully control, those two are the ones that matter.
+
+**CVE-2026-43618 (CVSS 8.1, HIGH)** is an integer overflow in the compressed-token decoder. A malicious rsync server can leak client memory during a normal `rsync pull`. No special configuration on your end. No daemon. Just a pull from an untrusted source.
+
+**CVE-2026-43620 (CVSS 6.5, MEDIUM)** is an out-of-bounds read in `recv_files()`. A malicious server can cause a client-side denial of service during a pull.
+
+## The other four CVEs
+
+The remaining four have narrower exposure:
+
+| CVE | CVSS | Requires |
+|-----|------|---------|
+| CVE-2026-29518 | 7.3 HIGH | Daemon without chroot |
+| CVE-2026-43617 | 4.8 MEDIUM | Daemon without chroot |
+| CVE-2026-43619 | 6.3 MEDIUM | Daemon without chroot |
+| CVE-2026-45232 | 3.1 LOW | RSYNC_PROXY set, or MITM position |
+
+The default `use chroot = yes` configuration protects against several of the daemon-mode issues. If you run rsync daemon with chroot disabled, your exposure is wider -- update first, review configuration second.
+
+## Who should update now
+
+The shortest path to "should I update today?": do you sync against external servers, CI artifact stores, backup targets, or any host you do not personally administer? If yes, CVE-2026-43618 applies to you.
+
+Distribution packages are moving. Red Hat advisory RHSA-2026:6436 is already out. Debian and Ubuntu packages are in progress -- check your package manager.
+
+```bash
+# Verify current version
+rsync --version
+
+# Debian/Ubuntu
+apt-get update && apt-get install rsync
+
+# RHEL/Rocky/AlmaLinux
+dnf update rsync
+```
+
+After updating, verify the version string shows 3.4.3.
+
+## What the release includes beyond CVE fixes
+
+The advisory notes that 3.4.3 also includes defense-in-depth hardening beyond the six CVE patches. No details are published yet on what that covers, which is standard for a security-first release.
+
+For context on how coordinated security releases across multiple branches look in practice, see [CVE-2026-46680: containerd patched across all active branches](/articles/hot-take/containerd-cve-2026-46680-coordinated-release).
+
+---
+
+*Sources: [oss-security announcement](https://seclists.org/oss-sec/2026/q2/620); [rsync CVE fix PR](https://github.com/RsyncProject/rsync/pull/895); [RHSA-2026:6436](https://access.redhat.com/errata/RHSA-2026:6436)*

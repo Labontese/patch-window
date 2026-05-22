@@ -1,0 +1,74 @@
+---
+title: "BIND 9 patches six CVEs, DNS resolvers in the crosshairs"
+format: hot-take
+slug: bind9-six-cves-dns-resolvers-may-2026
+pathway: security
+tags:
+  - bind9
+  - dns
+  - cve-2026-5950
+  - cve-2026-3039
+  - cve-2026-3592
+  - cve-2026-5946
+  - isc
+  - resolver
+  - security
+publishedAt: 2026-05-23T09:30:00+02:00
+excerpt: "ISC released BIND 9.18.49, 9.20.23, and 9.21.22 on May 20 fixing six CVEs. CVE-2026-5950 lets remote attackers exhaust resolver resources with no authentication required."
+draft: false
+lang: en
+---
+
+ISC shipped three BIND 9 releases on May 20: 9.18.49, 9.20.23, and 9.21.22. Six CVEs are addressed across the board. The one that should push you to patch this week is CVE-2026-5950.
+
+**CVE-2026-5950 (CVSS 5.3, MEDIUM)** is an unbounded resend loop in the BIND resolver state machine triggered by bad-server handling. A remote attacker can send crafted queries that activate the retry logic and cause significant resource exhaustion. No authentication required. Affected versions span 9.18.36 through 9.18.48, 9.20.8 through 9.20.22, and 9.21.7 through 9.21.21, plus the Supported Preview Edition equivalents.
+
+Authoritative nameservers are not the target here -- resolvers are. If you run BIND as your internal DNS resolver, this is directly relevant.
+
+## The full CVE list
+
+| CVE | Severity | Description |
+|-----|----------|-------------|
+| CVE-2026-3039 | HIGH (7.5) | Memory exhaustion via GSS-API TKEY queries |
+| CVE-2026-3592 | MEDIUM | Amplification via self-pointed glue records |
+| CVE-2026-5950 | MEDIUM (5.3) | Unbounded resend loop in resolver state machine |
+| CVE-2026-5946 | details pending | Incorrect CLASS != IN handling |
+| CVE-2026-3593 | details pending | See ISC advisories |
+| CVE-2026-5947 | details pending | See ISC advisories |
+
+CVE-2026-3039 targets environments using GSS-API TKEY -- Active Directory-integrated DNS setups are the primary exposure surface. An attacker can cause named to allocate memory that is never released, eventually crashing the service.
+
+## Which version to run
+
+| Branch | Patched version |
+|--------|-----------------|
+| 9.18.x | 9.18.49 |
+| 9.20.x | 9.20.23 |
+| 9.21.x (dev) | 9.21.22 |
+
+Stick to 9.18.x or 9.20.x for production. 9.21.x is the experimental development branch.
+
+## How to update
+
+```bash
+# Check what you're running
+named -v
+
+# Debian/Ubuntu (USN-8293-1 available since May 21)
+apt-get update && apt-get install bind9
+
+# RHEL/Rocky/AlmaLinux (RHSA-2026:8155 available)
+dnf update bind
+```
+
+After updating, restart named and verify the version string.
+
+## ISC is increasing release frequency
+
+On May 12, ISC published a blog post announcing that BIND security updates will come more frequently going forward. If you have not set up automated patching or monitoring for BIND advisories, now is a good time to do that. Six CVEs in a single batch after an increased-frequency announcement is a signal worth acting on.
+
+For an example of how resolver-side DNS exposure fits into broader infrastructure hardening, see [SSH keysign CVE-2026-46333](/articles/guides/ssh-keysign-cve-2026-46333) for a comparable network-service patch workflow.
+
+---
+
+*Sources: [CVE-2026-5950 ISC KB](https://kb.isc.org/docs/cve-2026-5950); [CVE-2026-3039 ISC KB](https://kb.isc.org/docs/cve-2026-3039); [BIND release announcement](https://www.linuxcompatible.org/story/bind-91849-92023-and-92122-released); [Ubuntu USN-8293-1](https://ubuntu.com/security/notices/USN-8293-1)*
