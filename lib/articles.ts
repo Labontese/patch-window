@@ -85,7 +85,6 @@ export function getArticleByFormatAndSlug(format: Format, slug: string): Article
   const { data, content } = matter(raw)
 
   validateFrontmatter(data, filePath)
-  if (new Date(data.publishedAt as string) > new Date()) return null
 
   return {
     title: data.title as string,
