@@ -7,6 +7,8 @@ import ArticleCard from '@/components/ArticleCard'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import { safeJsonLd } from '@/lib/jsonld'
 
+export const revalidate = 3600
+
 const BASE = 'https://patchwindow.serverdigital.net'
 
 interface Props {

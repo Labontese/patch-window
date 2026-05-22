@@ -45,6 +45,7 @@ export function getArticlesByFormat(format: Format): ArticleMeta[] {
     validateFrontmatter(data, filePath)
 
     if (data.draft === true) return null
+    if (new Date(data.publishedAt as string) > new Date()) return null
 
     const meta: ArticleMeta = {
       title: data.title as string,
@@ -84,6 +85,7 @@ export function getArticleByFormatAndSlug(format: Format, slug: string): Article
   const { data, content } = matter(raw)
 
   validateFrontmatter(data, filePath)
+  if (new Date(data.publishedAt as string) > new Date()) return null
 
   return {
     title: data.title as string,
@@ -122,6 +124,7 @@ export function getAllArticlesWithContent(): ArticleWithContent[] {
         validateFrontmatter(data, filePath)
 
         if (data.draft === true) return null
+        if (new Date(data.publishedAt as string) > new Date()) return null
 
         const meta: ArticleMeta = {
           title: data.title as string,

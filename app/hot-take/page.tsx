@@ -7,6 +7,8 @@ import Breadcrumbs from '@/components/Breadcrumbs'
 
 const BASE = 'https://patchwindow.serverdigital.net'
 
+export const revalidate = 3600
+
 export const metadata: Metadata = {
   title: 'Hot Takes',
   description: 'Fast, opinionated reactions to things that ship and deserve a response.',

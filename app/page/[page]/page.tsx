@@ -11,25 +11,29 @@ import Footer from '@/components/Footer'
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
-  title: 'Patch Window: Linux, DevOps & AI in production homelabs',
-  description:
-    'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
-  alternates: { canonical: 'https://patchwindow.serverdigital.net/' },
-  openGraph: {
-    type: 'website',
-    title: 'Patch Window: Linux, DevOps & AI in production homelabs',
-    description:
-      'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
-    url: 'https://patchwindow.serverdigital.net/',
-  },
-}
-
 const PAGE_SIZE = 15
 
-export default function HomePage() {
-  const { allArticles, tagCounts, latestDeepDive, paginatedArticles, totalPages } =
-    getHomepageData(1)
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ page: string }>
+}): Promise<Metadata> {
+  const { page } = await params
+  return {
+    alternates: { canonical: `https://patchwindow.serverdigital.net/page/${page}` },
+  }
+}
+
+export default async function PaginatedPage({
+  params,
+}: {
+  params: Promise<{ page: string }>
+}) {
+  const { page: pageParam } = await params
+  const pageNumber = parseInt(pageParam, 10)
+
+  const { allArticles, tagCounts, latestDeepDive, paginatedArticles, totalPages, pageNumber: page } =
+    getHomepageData(pageNumber)
 
   return (
     <>
@@ -58,12 +62,12 @@ export default function HomePage() {
                     <LogRow
                       key={article.slug}
                       article={article}
-                      index={i}
+                      index={(page - 1) * PAGE_SIZE + i}
                     />
                   ))}
                 </tbody>
               </table>
-              <Pagination currentPage={1} totalPages={totalPages} />
+              <Pagination currentPage={page} totalPages={totalPages} />
             </>
           ) : (
             <p style={{ color: 'var(--color-text-muted)' }}>No patches published yet.</p>

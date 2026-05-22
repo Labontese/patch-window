@@ -1,0 +1,90 @@
+---
+title: "etcd 3.7 beta: RangeStream in, v2 store out for good"
+format: hot-take
+slug: etcd-37-beta-rangestream-v2-eol
+pathway: sysadmin-craft
+tags:
+  - etcd
+  - kubernetes
+  - etcd-v2
+  - rangestream
+  - eol
+  - control-plane
+  - upgrade
+publishedAt: 2026-05-22T12:30:00+02:00
+excerpt: "etcd 3.7.0-beta.0 dropped May 20 with RangeStream for large query results and full removal of the v2 API. etcd 3.4 went EOL May 15. If you run either, read this."
+draft: false
+lang: en
+---
+
+etcd 3.7.0-beta.0 landed on May 20. Two things matter here: a new streaming RPC that changes how large queries work in production, and the final removal of everything v2. The beta window before the June-July final release is the time to test.
+
+## RangeStream: what it fixes and why it matters for Kubernetes
+
+Before 3.7, etcd returned range query results in a single response. For small keyspaces that is fine. For clusters with large amounts of data, a single large range query buffers the entire result set in memory before returning anything. This creates two problems: latency spikes while the buffer fills, and memory usage that is difficult to predict.
+
+RangeStream replaces the single-response pattern with a gRPC streaming RPC. The server returns chunks as they are ready. The client receives and processes data incrementally. Memory usage becomes predictable. Latency for the first bytes drops.
+
+The Kubernetes control plane makes heavy use of etcd range queries -- `LIST` operations on resources go through etcd as range scans. At scale, this is where etcd memory spikes have historically occurred during list-heavy operations like controller manager startup or a full resync. RangeStream addresses that directly.
+
+Jeffrey Ying from Google contributed the feature as a new contributor to etcd. It is available in both the gRPC API and via `etcdctl`.
+
+To use it with etcdctl once you are on 3.7:
+
+```bash
+etcdctl get "" --prefix --stream
+```
+
+## v2 store: fully removed
+
+etcd 3.7 is the first release with no v2 code at all. Removed:
+
+- The v2 API endpoint
+- The v2 client library
+- The v2 discovery mechanism
+- The v2 bootstrap path
+- Several deprecated experimental flags tied to v2 compatibility
+
+If you upgraded through v3.6.11 or later, you should be safe -- v3.6 already required the v3 store. If you skipped from an older 3.x directly and have any service that still uses the v2 API or the v2 client library, those will break on 3.7.
+
+Check your etcd clients and any tooling that calls etcd directly. Helm controllers, some older cluster lifecycle tools, and a few monitoring integrations have been known to hold onto v2 client code. The beta period is exactly when to find this out.
+
+## etcd 3.4 is end-of-life
+
+etcd 3.4 went EOL on May 15. The project maintains only the latest two minor versions. With 3.7 entering beta, the support window now covers 3.6 and 3.5. Version 3.4 may receive one final security patch at the end of May if a serious vulnerability warrants it, but that is not guaranteed.
+
+If you are running 3.4:
+
+1. Upgrade to 3.5 or 3.6 now
+2. Test in staging against the 3.7 beta if you want to get ahead
+
+The upgrade path from 3.4 requires going through each minor version in sequence (3.4 to 3.5, then 3.5 to 3.6). You cannot skip directly to 3.7. The etcd upgrade guide documents the process, including required data migration steps.
+
+## Support timeline after 3.7 final
+
+Once 3.7.0 final ships (expected June-July 2026), the support window shifts:
+
+| Version | Status |
+|---------|--------|
+| 3.7.x | Active (1 year after 3.7 GA) |
+| 3.6.x | Supported |
+| 3.5.x | Supported for 1 year after 3.7 GA |
+| 3.4.x | EOL (May 15, 2026) |
+
+Plan your upgrade before the 3.5 window starts closing.
+
+## Testing the beta
+
+The beta is not for production. It is for staging clusters where you want to:
+
+- Verify your workloads survive the v2 removal
+- Test RangeStream behaviour with your actual keyspace sizes
+- File issues before the final release hardens the API
+
+etcd bugs filed against the beta have a much better chance of making it into the final release than post-GA issue reports.
+
+For broader Kubernetes control plane context, see [Kubernetes 1.36 DRA: GPU scheduling is production-ready](/articles/deep-dive/kubernetes-1-36-dra-gpu-scheduling).
+
+---
+
+*Sources: [etcd 3.7.0-beta.0 announcement -- kubernetes.io/blog, 2026-05-20](https://kubernetes.io/blog/2026/05/20/etcd-370-beta/); [etcd v3.7.0-beta.0 release -- GitHub](https://github.com/etcd-io/etcd/releases/tag/v3.7.0-beta.0)*

@@ -7,6 +7,8 @@ import Breadcrumbs from '@/components/Breadcrumbs'
 
 const BASE = 'https://patchwindow.serverdigital.net'
 
+export const revalidate = 3600
+
 export const metadata: Metadata = {
   title: 'Deep Dives',
   description: 'Full technical analysis, tested against real hardware. 1500 words and up.',

@@ -1,0 +1,77 @@
+---
+title: "Kubernetes 1.36: Mixed Version Proxy is beta and on by default"
+format: hot-take
+slug: kubernetes-mixed-version-proxy-beta-136
+pathway: sysadmin-craft
+tags:
+  - kubernetes
+  - kubernetes-1-36
+  - mixed-version-proxy
+  - rolling-upgrade
+  - control-plane
+  - api-server
+  - feature-gates
+publishedAt: 2026-05-22T15:30:00+02:00
+excerpt: "Mixed Version Proxy graduated to beta in Kubernetes 1.36 and is now on by default. It fixes the silent 404 that can trigger garbage collection during rolling control plane upgrades."
+draft: false
+lang: en
+---
+
+Mixed Version Proxy (MVP) graduated to beta in Kubernetes 1.36 and is now enabled by default. If you run `--peer-ca-file` on your API servers, you get the protection automatically without touching any feature gate.
+
+## The problem it solves
+
+Rolling upgrades of a Kubernetes control plane create a window where API servers run different versions. If a client request lands on an older API server that does not know about a resource type introduced in the newer version, the old server returns a `404 Not Found`. From the client's perspective, the resource does not exist. This is wrong -- the resource exists, just on a newer peer.
+
+Two concrete failure modes follow from this:
+
+**Garbage collection.** Controllers that get a 404 for a resource they expect to exist may interpret it as the resource having been deleted. The garbage collector can then delete dependent objects -- children of a resource that is actually still there.
+
+**Blocked namespace deletion.** Namespace deletion stalls when objects cannot be confirmed deleted. A 404 from the wrong API server can put a namespace into a stuck terminating state until the upgrade completes and requests stop landing on the old server.
+
+Both failures are subtle. The cluster looks healthy. Requests complete with a status code. The 404 is just the wrong 404 at the wrong moment.
+
+## What MVP does
+
+When MVP is active, an API server that receives a request it cannot serve checks whether a peer API server can serve it instead. If so, it proxies the request to that peer and returns the correct response to the client. The client sees a successful response. The 404 never happens.
+
+In Kubernetes 1.36, MVP also gains peer-aggregated discovery. Previously, a client connecting to an older API server would only see that server's local API list, missing resource types that only the newer peers knew about. With peer-aggregated discovery, each API server merges its own API list with discovery data from all active peers before serving the discovery endpoint. Clients get a complete view of all APIs in the cluster regardless of which server they hit.
+
+If you specifically need the local view -- for debugging or compliance reasons -- add `profile=nopeer` to the `Accept` header on your discovery request.
+
+## What changed since alpha
+
+MVP was introduced in Kubernetes 1.28. The alpha implementation relied on the `StorageVersion` API to determine which server could handle a given resource. That approach had a significant gap: it did not cover CRDs or aggregated APIs, which make up a large share of real cluster resource types.
+
+The beta implementation replaces `StorageVersion` with aggregated discovery, which covers all resource types including CRDs. This closes the gap that made the alpha version less useful in clusters with heavy custom resource usage.
+
+## How to confirm it is working in your cluster
+
+MVP requires peer TLS to be configured. Without `--peer-ca-file`, the API servers cannot authenticate each other and MVP stays inactive even in 1.36. Check your API server arguments:
+
+```bash
+kubectl get pods -n kube-system -l component=kube-apiserver \
+  -o jsonpath='{.items[0].spec.containers[0].command}' | tr ',' '\n' | grep peer
+```
+
+You should see `--peer-ca-file` in the output. If you don't, MVP is not active for your cluster even though the feature gate is on.
+
+To verify the feature gate status directly:
+
+```bash
+kubectl get --raw /metrics | grep kubernetes_feature_enabled | grep UnknownVersionInteroperabilityProxy
+```
+
+A value of `1` means the feature is enabled.
+
+## Who should care most
+
+If you run Kubernetes in an environment with SLA requirements during upgrades -- production clusters where you cannot afford stuck namespaces or phantom garbage collection -- MVP removes a class of failure that was previously only avoidable by draining and updating all control plane nodes simultaneously (which requires downtime). With MVP enabled, rolling updates are safe by default.
+
+For managed clusters (EKS, GKE, AKS), the cloud provider controls the upgrade mechanism. MVP does not change anything you configure, but it is worth confirming with your provider that peer CA configuration is in place if you want to verify the protection is active.
+
+For broader Kubernetes 1.36 coverage, see [Kubernetes 1.36 DRA: GPU scheduling is production-ready](/articles/deep-dive/kubernetes-1-36-dra-gpu-scheduling) and [ingress-nginx is EOL: half your clusters are unpatched](/articles/hot-take/ingress-nginx-eol-kubernetes-gateway-api).
+
+---
+
+*Sources: [Mixed Version Proxy graduates to beta -- kubernetes.io/blog, 2026-05-15](https://kubernetes.io/blog/2026/05/15/kubernetes-1-36-feature-mixed-version-proxy-beta/); [Kubernetes v1.36.1 release -- GitHub](https://github.com/kubernetes/kubernetes/releases/tag/v1.36.1)*

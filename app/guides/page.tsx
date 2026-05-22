@@ -7,6 +7,8 @@ import Breadcrumbs from '@/components/Breadcrumbs'
 
 const BASE = 'https://patchwindow.serverdigital.net'
 
+export const revalidate = 3600
+
 export const metadata: Metadata = {
   title: 'Guides',
   description: 'Step-by-step guides for sysadmins and DevOps engineers running production infrastructure.',

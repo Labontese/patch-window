@@ -1,0 +1,64 @@
+---
+title: "Evince and Atril: opening a PDF can run arbitrary code on Linux"
+format: hot-take
+slug: evince-atril-pdf-polyglot-code-execution
+pathway: security-watch
+tags:
+  - evince
+  - atril
+  - xreader
+  - pdf
+  - command-injection
+  - linux-desktop
+  - security
+publishedAt: 2026-05-22T09:30:00+02:00
+excerpt: "GTK-based PDF readers on Linux -- Evince and Atril -- contain an argument injection vulnerability in ev_spawn(). A crafted PDF with a malicious page label or named destination is enough to trigger code execution."
+draft: false
+lang: en
+---
+
+Evince and Atril -- the default PDF readers in GNOME and MATE -- contain an argument injection vulnerability that can be triggered by opening a crafted PDF file. No extra steps required from the user.
+
+The vulnerability is CVE-2026-46529. It lives in `ev_spawn()`, the function these readers use to launch new instances of themselves when following cross-document links. Page labels, named destinations, and search strings from the PDF are passed to child processes without shell quoting. A crafted PDF with a malicious page label containing special characters or flags can inject unintended arguments into the spawned process, leading to arbitrary code execution in the reader's context.
+
+Patches are available for Evince in Debian bookworm and trixie (security channels). Atril has a fix in Debian unstable. Ubuntu lists all affected packages as "needs evaluation" as of May 21, 2026. Papers (GNOME's newer document viewer) has no fix in current releases.
+
+## Who is affected
+
+Evince ships as the default PDF viewer in GNOME, which means it is preinstalled in Ubuntu, Fedora, Debian with GNOME, and most major Linux distributions using the GNOME desktop. Atril is the default in MATE.
+
+Any Linux desktop user or sysadmin who opens PDF files from external sources -- email attachments, web downloads, shared drives -- is in scope. The file does not need to come from an obviously hostile source. A convincing invoice or report PDF with a crafted page label is sufficient to deliver the payload.
+
+Server environments without a desktop stack are not affected. The risk is on workstations, developer machines, and any system where someone opens documents.
+
+## What the vulnerability actually is
+
+The affected readers use `ev_spawn()` in `shell/ev-application.c` to open new viewer instances when a PDF contains links to other documents or specific named destinations. The function builds a command line for the child process and appends user-controlled values from the PDF -- page labels, named destinations, search terms -- directly, without calling `g_shell_quote()` first.
+
+A PDF crafted with a page label like `--version` or a named destination containing shell metacharacters can cause the child process to receive unintended flags or arguments. Depending on what the child process does with those arguments, this enables arbitrary code execution.
+
+The fix, applied in Evince commit `970c219e` and Atril commit `b989b792`, wraps each of these three parameter types with `g_shell_quote()` before appending them to the command.
+
+## What to do now
+
+**Check whether your distribution has shipped a patched package.** Debian bookworm users should have the fix available via the security channel (`43.1-2+deb12u1` for evince). Trixie users: `48.1-3+deb13u1`. Ubuntu packages remain unpatched as of May 21, 2026.
+
+**Until a patch is available for your system, avoid opening PDFs that contain cross-document links from untrusted sources.** This includes email attachments, downloads from unfamiliar sites, and files received through chat.
+
+**Use a browser-based PDF viewer as a temporary mitigation.** Firefox and Chromium both include sandboxed PDF renderers (PDF.js and PDFium respectively) that do not use these GTK-based readers' spawn mechanisms. Opening suspicious PDFs via the browser rather than double-clicking in a file manager reduces exposure.
+
+**On GNOME, change the default PDF handler** to a browser-based renderer temporarily:
+
+```bash
+xdg-mime default firefox.desktop application/pdf
+```
+
+Restore with `xdg-mime default evince.desktop application/pdf` once a patch lands for your distribution.
+
+**Watch your distribution's security advisories.** Fedora, Ubuntu, and Mint will ship patched packages when upstream provides fixes. Subscribe to their security announcement mailing lists or RSS feeds if you are not already.
+
+For related Linux security triage, see [Three Linux kernel LPEs in 14 days: triage guide](/articles/deep-dive/linux-lpe-triage-may-2026).
+
+---
+
+*Sources: [CVE-2026-46529 -- Ubuntu Security](https://ubuntu.com/security/CVE-2026-46529); [Debian Security Tracker -- CVE-2026-46529](https://security-tracker.debian.org/tracker/CVE-2026-46529); Atril fix commit `b989b792` (MATE Desktop / GitHub)*
