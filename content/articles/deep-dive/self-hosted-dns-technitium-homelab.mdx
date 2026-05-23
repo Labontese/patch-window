@@ -1,0 +1,164 @@
+---
+title: "Technitium DNS Server in a homelab"
+format: deep-dive
+slug: self-hosted-dns-technitium-homelab
+pathway: sysadmin-craft
+tags:
+  - dns
+  - technitium
+  - homelab
+  - proxmox
+  - self-hosted
+  - split-dns
+  - privacy
+publishedAt: 2026-05-26T09:00:00+02:00
+excerpt: "13 million NXDomain responses in a year. That is what a self-hosted DNS server looks like -- ad blocking, split DNS, and LDAP service discovery handled internally."
+draft: false
+lang: en
+toc:
+  - id: "why-run-your-own-dns"
+    label: "Why run your own DNS"
+  - id: "technitium-not-pihole"
+    label: "Technitium, not Pi-hole"
+  - id: "two-zones-one-strategy"
+    label: "Two zones, one strategy"
+  - id: "split-dns-and-privacy"
+    label: "Split DNS and privacy"
+  - id: "the-numbers"
+    label: "The numbers"
+  - id: "the-honest-part"
+    label: "The honest part"
+---
+
+Over the past year, the DNS server in my homelab answered 31 million queries. Of those, 13 million came back NXDOMAIN. That is not an error rate. That is ad blocking, tracker suppression, and telemetry interception — all resolved locally, never forwarded to an upstream resolver, never logged by someone else's infrastructure. The remaining 18 million queries resolved to real answers, most of them from cache.
+
+This is what a self-hosted DNS server actually looks like from the inside.
+
+## Why run your own DNS {#why-run-your-own-dns}
+
+The usual answer to this question is ad blocking. That is part of it, but it undersells what you get once you control your own resolver.
+
+When I reach `r730xd.home.lan` from any machine on the network, I get the right IP without opening a spreadsheet. When Grafana at `grafana.lab.local` resolves to my dev server, it does so because I have a CNAME pointing there, not because I edited a hosts file somewhere. When OpenLDAP needs to be discovered by clients via SRV records, the record is in DNS, not in a configuration file on every machine that needs it.
+
+None of this requires a full DNS server. You can do host-based resolution with dnsmasq and a list of A records. But once you need PTR records, SRV records, CNAMEs that follow correctly, zone transfers, or the ability to inspect and audit your DNS from a web UI, you want an actual DNS server.
+
+The 13 million NXDomain responses are a secondary benefit that compounds over a year. Those are queries that never left the network. ISP DNS logs are not a privacy model I want to rely on.
+
+## Technitium, not Pi-hole {#technitium-not-pihole}
+
+Pi-hole is what most people reach for first. It is well-documented, widely discussed on Reddit, and handles blocklists effectively. I used it for years.
+
+The distinction that matters here: Pi-hole is a DNS sinkhole with a DNS server (originally dnsmasq, now a custom resolver) bolted on. Its primary purpose is blocking. Technitium DNS Server is a full DNS server — authoritative, recursive, caching — that also supports blocklists.
+
+That difference shows up the moment you want to do anything beyond blocking.
+
+With Pi-hole, adding a custom A record for `proxmox.home.lan` means editing a file or using the custom DNS interface, which stores records in a flat format, not in a proper zone. There is no concept of SOA records, no zone transfers, no SRV records. When I added an `_ldap._tcp` SRV record for OpenLDAP service discovery, Pi-hole could not do it. Not without patching the underlying resolver config manually and accepting that the UI would not reflect it.
+
+Technitium handles this natively. You create a zone, add records through the web UI or via the API, and it behaves like a real DNS server. Zone files, SOA records, NS records — all present. The LDAP SRV record is a first-class entry in the `lab.local` zone.
+
+AdGuard Home sits between the two. It is more DNS-aware than Pi-hole and handles some custom records, but it is still focused on filtering. It does not do authoritative DNS for custom zones in the same way Technitium does.
+
+If all you want is ad blocking on a home network, Pi-hole or AdGuard Home are reasonable choices and simpler to set up. If you want to run split DNS, manage multiple zones, or use DNS for service discovery, Technitium is the right tool.
+
+## Two zones, one strategy {#two-zones-one-strategy}
+
+My setup has two zones. `home.lan` covers physical infrastructure. `lab.local` covers services. The separation is intentional.
+
+The network runs across nine VLANs. VLAN 10 is management — switches, firewalls, iDRAC and IPMI interfaces. VLAN 20 is the server tier — Proxmox and TrueNAS. VLANs 30, 40, and 50 segment client and service traffic. VLANs 60, 70, and 80 cover infrastructure and lab scopes. VLAN 85 is for trusted workstations. VLAN 90 is isolated corporate infrastructure. Technitium answers for all of them from a single LXC.
+
+`home.lan` records — management and physical hardware:
+
+```
+gateway          A    10.10.10.1
+dns              A    10.10.10.4
+r730xd           A    10.10.10.10
+t430             A    10.10.10.11
+pbs              A    10.10.10.12
+ex4200           A    10.10.10.200
+lb6m             A    10.10.10.201
+```
+
+`lab.local` records — services and workloads:
+
+```
+ns1              A       10.10.10.4
+pve              A       10.10.20.2
+nas              A       10.10.20.3
+k3s-api          A       10.10.60.10
+k3s-node1        A       10.10.60.11
+k3s-node2        A       10.10.60.12
+grafana          A       10.10.60.20
+victoria         A       10.10.60.21
+loki             A       10.10.60.22
+wazuh            A       10.10.60.30
+forgejo          A       10.10.60.40
+phpipam          A       10.10.60.41
+vault            A       10.10.60.50
+ldap             A       10.10.60.51
+_ldap._tcp       SRV     0 5 389 ldap.lab.local.
+```
+
+The `home.lan` zone is for accessing hardware directly. When I need to get into an iDRAC interface or pull up the switch management page, I type the hostname in a browser. No IP lookup, no notes app, no guessing. Everything on VLAN 10.
+
+The `lab.local` zone is for services, not hosts. `grafana.lab.local` is a CNAME to `dev.lab.local`, not an A record. When I move Grafana to a different container on a different host, I update one CNAME. Every client that queries `grafana.lab.local` follows the CNAME automatically. The alternative — hard-coding IPs everywhere or updating A records manually — is how you spend an afternoon fixing a service migration.
+
+The LDAP SRV record is worth explaining separately. OpenLDAP clients can be configured to discover their LDAP server via DNS SRV records rather than a hardcoded hostname. The record `_ldap._tcp.lab.local. SRV 0 5 389 ldap.lab.local.` tells any compliant LDAP client where to connect. This means the LDAP server address is in DNS, not in each client's config file. When the LDAP server moves, update one DNS record. You do not touch client configurations.
+
+This is standard DNS service discovery. It works because Technitium serves the zone authoritatively. A forwarding-only resolver cannot do this.
+
+## Split DNS and privacy {#split-dns-and-privacy}
+
+Upstream resolution goes to `dns.mullvad.net`. Not `8.8.8.8`, not my ISP's resolver, not Cloudflare.
+
+The reason is query privacy. When a DNS query leaves my network, it contains a browsing pattern. The upstream resolver sees every hostname my network asks about. Google's resolver sees it. The ISP's resolver sees it. Mullvad's resolver is operated by a company whose business model is not advertising and which does not log queries. That is a meaningful difference in a threat model that includes ISP-level data collection.
+
+The split DNS part: Technitium answers authoritatively for `home.lan` and `lab.local`. Queries for those zones never leave the network — there is nothing to forward, because the server has the answer. Queries for everything else get forwarded to Mullvad via DNS-over-HTTPS.
+
+This means `grafana.lab.local` resolves correctly to my internal dev server from inside the network. A client outside the network cannot resolve it at all, because the zone is not delegated publicly. That is the correct behavior for internal service names. You do not want `ldap.lab.local` resolving to a private IP from the public internet.
+
+The configuration in Technitium for this is straightforward. Under Settings > Recursion, set the upstream forwarder to `https://dns.mullvad.net/dns-query`. For each internal zone, Technitium answers authoritatively. For everything else, it forwards. No additional configuration needed to get the split behavior — zone authority takes precedence over forwarding automatically.
+
+One thing to verify after setup: check that your internal zone names do not collide with anything real. `home.lan` and `lab.local` are both private use names. `.local` is technically reserved for mDNS (Multicast DNS / Bonjour), which means aggressive mDNS implementations can interfere. In practice this has not caused problems in my environment because the network is wired and mDNS traffic is contained. If you run a lot of Apple devices or IoT gear that relies on mDNS, `lab.local` is a name collision risk. `.lan` is safer.
+
+## The numbers {#the-numbers}
+
+One year of DNS stats from a single Proxmox LXC with 6 GB RAM assigned (using 94 MB of it):
+
+| Metric | Value |
+|---|---|
+| Total queries | 31,392,119 |
+| Cache hit rate | 69.88% |
+| Cached responses | 21,900,000 |
+| NXDomain (blocked) | 41.47% / 13,000,000 |
+| Server failure | 0.04% / 12,871 |
+| Unique clients | 159 |
+
+The 69% cache hit rate is the number that compounds silently. Over 21 million queries were answered from memory — no upstream round trip, no network latency beyond the local LAN. DNS responses from cache resolve in the low microseconds. Responses that go upstream through Mullvad over HTTPS add at minimum 10–50 ms depending on network conditions. On 21 million queries, that is a latency difference that shows up as overall network snappiness even though no single query seems slow.
+
+The client breakdown is more interesting. 159 clients. Two of them account for over 60% of all queries.
+
+`10.10.0.50` sent 10,006,185 queries — about 32% of total traffic. `10.10.0.1` sent 8,874,834 — that is the router, which forwards DNS for DHCP clients configured to use it as their resolver. The router number makes sense: all DNS from those clients flows through the gateway before hitting my DNS server, so it shows up as a single high-volume client.
+
+The 10 million queries from `10.10.0.50` need an explanation. That host runs containers and Kubernetes workloads. In a Kubernetes cluster, every pod has its own DNS client, every service mesh sidecar makes DNS calls, every health check may involve a hostname lookup. The per-query volume from a single node running dozens of pods is not a surprise — it is what modern container infrastructure looks like from a DNS perspective. The DNS server needs to handle it. On this workload, the Technitium instance running in an LXC with 94 MB of RAM in use handles it without complaint.
+
+The 0.04% server failure rate (12,871 queries over a year) corresponds mostly to upstream timeouts. Mullvad DNS is reliable but not perfectly so. Technitium retries transparently and the failures are not visible to clients in normal operation.
+
+## The honest part {#the-honest-part}
+
+Technitium runs on .NET. As of this writing, version 15.2 targets .NET 10.0 and ASP.NET 10.0.8. The service file ships with `Restart=always` and a 10-second `RestartSec`. For a DNS server that everything on the network depends on, that setting is not optional. Check it is in place before you deploy.
+
+For the web UI, the default port is 5380. The API is available at the same address. If you are scripting zone updates or record management, the HTTP API is complete — every operation available in the UI is also available via API call. I use this to update records automatically when service IPs change.
+
+Running local DNS gives you four things that you do not get from forwarding everything to an external resolver:
+
+**Latency.** Cached responses answer in microseconds. A forwarded query to an upstream resolver over HTTPS adds 10–50 ms per round trip. On 21 million queries, that difference compounds into something you feel as overall network responsiveness even when no single lookup seems slow.
+
+**Privacy.** The upstream resolver sees only the queries that are not cached and not internal. With 69% cache hits and 41% NXDomain responses handled locally, Mullvad's resolver sees roughly 15% of my actual DNS volume. The ISP sees none of it — all queries leave the network encrypted via DNS-over-HTTPS.
+
+**Control.** Every device on the network gets consistent, predictable name resolution. Hostnames for management interfaces, hypervisors, NAS, internal services — all managed in one place, visible in one UI, queryable from any machine on the network. No hosts files to keep synchronized across machines, no manual IP lookups.
+
+**Visibility.** The dashboard shows what is happening on the network at the DNS level. Which clients are making the most queries. What the cache hit rate looks like over time. Whether the block rate is tracking upward as blocklists update. DNS traffic is a surprisingly accurate proxy for overall network activity, and having it instrumented locally means you see it.
+
+One year in, this is the DNS infrastructure I would set up again without hesitation. The NXDomain count is not just a stat — it is 13 million queries that went nowhere useful, answered instantly, logged locally, visible in my own dashboard. The split DNS setup means service names resolve correctly inside the network and mean nothing outside it.
+
+Running your own DNS server in a homelab used to mean fighting with BIND configuration files. Technitium is not that. The web UI is complete, the API is usable, and the zone management works the way DNS is supposed to work.
