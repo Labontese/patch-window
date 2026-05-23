@@ -137,9 +137,9 @@ The 69% cache hit rate is the number that compounds silently. Over 21 million qu
 
 The client breakdown is more interesting. 159 clients. Two of them account for over 60% of all queries.
 
-`10.10.0.50` sent 10,006,185 queries — about 32% of total traffic. `10.10.0.1` sent 8,874,834 — that is the router, which forwards DNS for DHCP clients configured to use it as their resolver. The router number makes sense: all DNS from those clients flows through the gateway before hitting my DNS server, so it shows up as a single high-volume client.
+`10.10.60.10` sent 10,006,185 queries — about 32% of total traffic. `10.10.10.1` sent 8,874,834 — that is the router, which forwards DNS for DHCP clients configured to use it as their resolver. The router number makes sense: all DNS from those clients flows through the gateway before hitting my DNS server, so it shows up as a single high-volume client.
 
-The 10 million queries from `10.10.0.50` need an explanation. That host runs containers and Kubernetes workloads. In a Kubernetes cluster, every pod has its own DNS client, every service mesh sidecar makes DNS calls, every health check may involve a hostname lookup. The per-query volume from a single node running dozens of pods is not a surprise — it is what modern container infrastructure looks like from a DNS perspective. The DNS server needs to handle it. On this workload, the Technitium instance running in an LXC with 94 MB of RAM in use handles it without complaint.
+The 10 million queries from `10.10.60.10` need an explanation. That host runs containers and Kubernetes workloads. In a Kubernetes cluster, every pod has its own DNS client, every service mesh sidecar makes DNS calls, every health check may involve a hostname lookup. The per-query volume from a single node running dozens of pods is not a surprise — it is what modern container infrastructure looks like from a DNS perspective. The DNS server needs to handle it. On this workload, the Technitium instance running in an LXC with 94 MB of RAM in use handles it without complaint.
 
 The 0.04% server failure rate (12,871 queries over a year) corresponds mostly to upstream timeouts. Mullvad DNS is reliable but not perfectly so. Technitium retries transparently and the failures are not visible to clients in normal operation.
 
