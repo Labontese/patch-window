@@ -17,7 +17,7 @@
 
 import { ImageResponse } from 'next/og'
 
-export const OG_SIZE = { width: 1200, height: 630 }
+export const OG_SIZE = { width: 1600, height: 840 }
 
 /**
  * Truncates a slug for display in the command line. Long slugs blow out the
