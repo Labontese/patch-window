@@ -97,7 +97,7 @@ const organizationJsonLd = {
     contactType: 'editorial',
     email: 'daniel@serverdigital.net',
   },
-  sameAs: ['https://github.com/holmdigital'],
+  sameAs: ['https://github.com/Labontese'],
 }
 
 const websiteJsonLd = {

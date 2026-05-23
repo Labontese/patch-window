@@ -67,7 +67,7 @@ export default async function DeepDivePage({ params }: Props) {
       name: 'Daniel Gustafsson',
       url: 'https://patchwindow.serverdigital.net/about/daniel',
       sameAs: [
-        'https://www.linkedin.com/in/holmdigital/',
+        'https://www.linkedin.com/in/daniel-gustafsson-habo/',
         'https://github.com/Labontese',
         'https://twitter.com/DanneGsson',
       ],
