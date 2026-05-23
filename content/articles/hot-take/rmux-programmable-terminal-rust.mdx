@@ -1,0 +1,44 @@
+---
+title: "Rmux: a scriptable terminal built in Rust"
+format: hot-take
+slug: rmux-programmable-terminal-rust
+pathway: sysadmin-craft
+tags:
+  - rmux
+  - rust
+  - terminal
+  - tmux-alternative
+  - automation
+  - tui
+publishedAt: 2026-05-23T07:00:00+02:00
+excerpt: "Rmux is a Rust-built terminal multiplexer with a typed SDK for scripting and automating CLI and TUI apps — like tmux, but with a Playwright-style async API."
+draft: false
+lang: en
+---
+
+I've been using tmux for years, and the scripting story has always been a bit awkward. You can send keys. You can watch for text. But driving a real interactive app from code — something that responds to input, renders state, and needs you to wait for specific output — has always required shell gymnastics that break the moment something changes.
+
+Rmux is a different approach. It's a terminal multiplexer written in Rust, tmux-compatible at the CLI level, but built with a typed SDK from the start. The comparison it makes in its own README is to Playwright: instead of send-keys-and-pray, you get a proper async API with typed sessions, panes, snapshots, and a `wait_for_text` primitive.
+
+The project is young. v0.2.5 shipped yesterday (22 May 2026), just days after v0.2.0 on 18 May. The README is honest about this: "bugs are expected — this is a fresh public preview." It has 731 stars on GitHub and covers Linux, macOS, and Windows including Named Pipes.
+
+The SDK is what makes this interesting. Here's a stripped-down example from the docs:
+
+```rust
+let pane = session.pane(0, 0);
+pane.send_text("printf 'ready\\n' && sleep 1\n").await?;
+pane.wait_for_text("ready").await?;
+let snapshot = pane.snapshot().await?;
+```
+
+That `wait_for_text` is the thing tmux doesn't have. You can approximate it with a polling loop in shell, but it's fragile. Here you get a typed async future that resolves when the terminal actually shows what you're waiting for.
+
+There's also a Ratatui widget (`ratatui-rmux`) that lets you embed a live terminal pane inside your own TUI app. That's a genuinely different surface area — not "run a command and capture output" but "render a terminal as a widget inside another terminal app."
+
+The author's starting point was running long-lived agents over SSH and being able to inspect, script, and orchestrate what's happening in their terminals. That maps to a real problem. Claude Code, for instance, runs in a terminal. If you want to drive it or monitor it from code, your options right now are clunky.
+
+I don't know yet whether rmux's daemon architecture is stable enough for production use. The project is a few days old in terms of public releases. But the architecture is thought through: there's a shared local protocol between the CLI, the SDK, and the Ratatui widget, which means everything that's scriptable from Rust is also accessible from the CLI. That's a good sign.
+
+If you're building anything that involves driving terminal apps from code — test harnesses, agent orchestration, multi-pane monitoring setups — this is worth watching. The tmux scripting approach gets you 80% of the way. The question rmux is answering is what the other 20% looks like with proper tooling.
+
+Related: [Cursor is fine, but it's not the terminal](/articles/hot-take/cursor-is-fine-but-its-not-the-terminal)
