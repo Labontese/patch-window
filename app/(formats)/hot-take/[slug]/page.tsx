@@ -64,6 +64,11 @@ export default async function HotTakePage({ params }: Props) {
       '@type': 'Person',
       name: 'Daniel Gustafsson',
       url: 'https://patchwindow.serverdigital.net/about/daniel',
+      sameAs: [
+        'https://www.linkedin.com/in/holmdigital/',
+        'https://github.com/Labontese',
+        'https://twitter.com/DanneGsson',
+      ],
     },
     publisher: {
       '@type': 'Organization',
