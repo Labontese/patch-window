@@ -8,6 +8,7 @@ import ArticleHeader from '@/components/ArticleHeader'
 import AuthorBio from '@/components/AuthorBio'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import { safeJsonLd } from '@/lib/jsonld'
+import TableOfContents from '@/components/TableOfContents'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -95,9 +96,11 @@ export default async function DeepDivePage({ params }: Props) {
             { label: meta.title },
           ]}
         />
-        {/* Article body before sidebar in DOM order (SC 1.3.2, 2.4.3) */}
         <div className="article-layout article-layout--with-sidebar">
           <article className="content-col">
+            {meta.toc && meta.toc.length > 0 && (
+              <TableOfContents entries={meta.toc} />
+            )}
             <ArticleHeader meta={meta} />
             <div className="article-body">
               <Content />

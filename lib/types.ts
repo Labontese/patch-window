@@ -43,6 +43,12 @@ export function slugToTitle(slug: string): string {
 export const FORMATS = ['hot-take', 'deep-dive', 'brief', 'guides'] as const
 export type Format = (typeof FORMATS)[number]
 
+export interface TocEntry {
+  id: string
+  label: string
+  level?: number
+}
+
 export interface ArticleFrontmatter {
   title: string
   format: Format
@@ -56,6 +62,7 @@ export interface ArticleFrontmatter {
   related?: Array<{ format: Format; slug: string }>
   draft?: boolean
   lang?: string
+  toc?: TocEntry[]
 }
 
 export interface ArticleMeta extends ArticleFrontmatter {
