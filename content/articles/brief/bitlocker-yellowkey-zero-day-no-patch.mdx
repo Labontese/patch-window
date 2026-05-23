@@ -1,5 +1,5 @@
 ---
-title: "BitLocker zero-day: no patch, PoC is public"
+title: "BitLocker YellowKey (CVE-2026-45585): what to do now"
 format: brief
 slug: bitlocker-yellowkey-zero-day-no-patch
 pathway: sysadmin-craft
@@ -8,16 +8,16 @@ tags:
   - windows
   - security
   - zero-day
-  - cve
+  - cve-2026-45585
   - sysadmin
   - endpoint
 publishedAt: 2026-05-14T16:00:00+02:00
-excerpt: "BitLocker zero-day YellowKey gives full read access to encrypted drives via USB. No patch as of May 2026 Patch Tuesday. TPM-only configs are the primary target."
+excerpt: "BitLocker's default TPM-only mode is the attack surface. YellowKey (CVE-2026-45585) needs physical access and a USB drive. Switch to TPM+PIN to block the published PoC."
 draft: false
 lang: en
 ---
 
-A BitLocker zero-day named YellowKey was published on 13 May 2026 by a security researcher using the alias Nightmare-Eclipse. The proof-of-concept is public on GitHub. As of 14 May, Microsoft has not shipped a patch — May 2026 Patch Tuesday did not include a fix. The exploit targets Windows 11 and Windows Server 2022 and 2025.
+A BitLocker zero-day named YellowKey (CVE-2026-45585) was published on 13 May 2026 by a security researcher using the alias Nightmare-Eclipse. The proof-of-concept is public on GitHub. The exploit targets Windows 11 and Windows Server 2022 and 2025. Microsoft has not shipped a patch but published a mitigation guide around 20 May — the workarounds described below remain the primary response.
 
 YellowKey gives an attacker a command shell with full read access to a BitLocker-encrypted volume without knowing the PIN. The companion exploit, GreenPlasma, is a separate privilege escalation to SYSTEM via arbitrary section creation in Windows CTFMON.
 
@@ -31,7 +31,7 @@ TPM-only is also the default configuration in most enterprise deployments. Micro
 
 ## What you can do right now
 
-There is no patch. The mitigations are configuration-level:
+There is no patch yet. Microsoft has published a mitigation guide but no fix. The mitigations are configuration-level:
 
 **Enable TPM+PIN on every endpoint.** This closes the published PoC. The operational cost is that users need to enter a PIN at boot, which is non-trivial in large managed fleets — but it is the only reliable mitigation against physical-access attacks on BitLocker volumes. Group Policy path: `Computer Configuration > Administrative Templates > Windows Components > BitLocker Drive Encryption > Operating System Drives > Require additional authentication at startup`.
 
@@ -59,4 +59,4 @@ The real finding here is not the specific exploit but what it confirms: TPM-only
 
 For organizations whose threat model includes physical access — traveling executives, unattended endpoints, shared office spaces — the patch-level gap is less important than the configuration gap. TPM+PIN should have been default for those environments already. The immediate action is auditing which endpoints are running TPM-only and changing that before a patch exists, not waiting for one.
 
-Follow BleepingComputer's coverage for patch status updates.
+*Updated 2026-05-23: CVE-2026-45585 confirmed. Microsoft published a mitigation guide around 20 May. No patch yet.*
