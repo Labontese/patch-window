@@ -34,7 +34,7 @@ Over the past year, the DNS server in my homelab answered 31 million queries. Of
 
 This is what a self-hosted DNS server actually looks like from the inside.
 
-## Why run your own DNS {#why-run-your-own-dns}
+## Why run your own DNS
 
 The usual answer to this question is ad blocking. That is part of it, but it undersells what you get once you control your own resolver.
 
@@ -44,7 +44,7 @@ None of this requires a full DNS server. You can do host-based resolution with d
 
 The 13 million NXDomain responses are a secondary benefit that compounds over a year. Those are queries that never left the network. ISP DNS logs are not a privacy model I want to rely on.
 
-## Technitium, not Pi-hole {#technitium-not-pihole}
+## Technitium, not Pi-hole
 
 Pi-hole is what most people reach for first. It is well-documented, widely discussed on Reddit, and handles blocklists effectively. I used it for years.
 
@@ -60,7 +60,7 @@ AdGuard Home sits between the two. It is more DNS-aware than Pi-hole and handles
 
 If all you want is ad blocking on a home network, Pi-hole or AdGuard Home are reasonable choices and simpler to set up. If you want to run split DNS, manage multiple zones, or use DNS for service discovery, Technitium is the right tool.
 
-## Two zones, one strategy {#two-zones-one-strategy}
+## Two zones, one strategy
 
 My setup has two zones. `home.lan` covers physical infrastructure. `lab.local` covers services. The separation is intentional.
 
@@ -106,7 +106,7 @@ The LDAP SRV record is worth explaining separately. OpenLDAP clients can be conf
 
 This is standard DNS service discovery. It works because Technitium serves the zone authoritatively. A forwarding-only resolver cannot do this.
 
-## Split DNS and privacy {#split-dns-and-privacy}
+## Split DNS and privacy
 
 Upstream resolution goes to `dns.mullvad.net`. Not `8.8.8.8`, not my ISP's resolver, not Cloudflare.
 
@@ -120,7 +120,7 @@ The configuration in Technitium for this is straightforward. Under Settings > Re
 
 One thing to verify after setup: check that your internal zone names do not collide with anything real. `home.lan` and `lab.local` are both private use names. `.local` is technically reserved for mDNS (Multicast DNS / Bonjour), which means aggressive mDNS implementations can interfere. In practice this has not caused problems in my environment because the network is wired and mDNS traffic is contained. If you run a lot of Apple devices or IoT gear that relies on mDNS, `lab.local` is a name collision risk. `.lan` is safer.
 
-## The numbers {#the-numbers}
+## The numbers
 
 One year of DNS stats from a single Proxmox LXC with 6 GB RAM assigned (using 94 MB of it):
 
@@ -143,7 +143,7 @@ The 10 million queries from `10.10.60.10` need an explanation. That host runs co
 
 The 0.04% server failure rate (12,871 queries over a year) corresponds mostly to upstream timeouts. Mullvad DNS is reliable but not perfectly so. Technitium retries transparently and the failures are not visible to clients in normal operation.
 
-## The honest part {#the-honest-part}
+## The honest part
 
 Technitium runs on .NET. As of this writing, version 15.2 targets .NET 10.0 and ASP.NET 10.0.8. The service file ships with `Restart=always` and a 10-second `RestartSec`. For a DNS server that everything on the network depends on, that setting is not optional. Check it is in place before you deploy.
 
