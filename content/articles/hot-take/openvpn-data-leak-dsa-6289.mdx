@@ -1,0 +1,49 @@
+---
+title: "OpenVPN patches handshake data leak and denial of service"
+format: hot-take
+slug: openvpn-data-leak-dsa-6289
+pathway: security
+tags:
+  - openvpn
+  - cve-2026-35058
+  - cve-2026-40215
+  - dsa-6289
+  - vpn
+  - security
+publishedAt: 2026-05-24T09:00:00+02:00
+excerpt: "OpenVPN 2.6.14 patches CVE-2026-35058 (DoS via malformed packet) and CVE-2026-40215 (handshake data leak). No authentication required to trigger either. Debian DSA-6289-1 is out."
+draft: false
+lang: en
+---
+
+Two CVEs landed in OpenVPN this week. Neither requires authentication to trigger. Debian Security Advisory DSA-6289-1 went out on May 21 with packages for Bookworm and Trixie.
+
+**CVE-2026-40215** is the one worth understanding. In a race condition during TLS session handshake, an old session can still attempt to send a packet at the exact moment it gets replaced by a new one. When that happens, the buffer from the new session is still referenced. The result: packet data from the previous handshake leaks to the new session's client. A check was added to catch this condition before the buffer is used.
+
+**CVE-2026-35058** is a server-side crash. A malformed packet carrying a valid `tls-crypt-v2` key triggers an ASSERT() and brings the daemon down. Denial of service, no session required.
+
+## How bad is CVE-2026-40215 in practice?
+
+The word "leak" in VPN context sounds alarming, but the scope here is specific. This is packet data from a handshake buffer, not decrypted session traffic. It requires a race condition to occur during session replacement. That said, a bug that moves data across session boundaries in a VPN daemon is the kind of thing you fix before anything else.
+
+The upstream fix is in OpenVPN 2.6.20 (and 2.7.2 on the mainline branch). The Debian packages carry version strings 2.6.14-0+deb12u1 (Bookworm) and 2.6.14-1+deb13u2 (Trixie) -- those are Debian-patched builds of the 2.6.14 base, not upstream 2.6.20.
+
+## Who to update
+
+Any server running a public-facing OpenVPN endpoint. The race condition in CVE-2026-40215 is harder to hit on lightly loaded servers, but harder is not zero.
+
+```bash
+# Debian/Ubuntu -- check current version
+dpkg -l openvpn
+
+# Update
+apt-get update && apt-get install openvpn
+```
+
+After upgrading on Bookworm you should see `2.6.14-0+deb12u1` or later. On Trixie: `2.6.14-1+deb13u2` or later.
+
+Ubuntu packages are moving through USN channels -- check your package manager.
+
+---
+
+*Sources: [Debian DSA-6289-1](https://lists.debian.org/debian-security-announce/2026/msg00200.html); [CVE-2026-40215 OpenVPN wiki](https://community.openvpn.net/Security%20Announcements/CVE-2026-40215); [OpenVPN releases](https://github.com/OpenVPN/openvpn/releases)*

@@ -1,0 +1,52 @@
+---
+title: "HAProxy HTTP/3 parser lets one empty packet smuggle requests"
+format: hot-take
+slug: haproxy-http3-smuggling-dsa-6291
+pathway: security
+tags:
+  - haproxy
+  - cve-2026-33555
+  - dsa-6291
+  - http3
+  - quic
+  - request-smuggling
+  - security
+publishedAt: 2026-05-24T10:00:00+02:00
+excerpt: "CVE-2026-33555: HAProxy's HTTP/3 parser skips body size validation on stream close, enabling request smuggling. One zero-byte QUIC packet is enough. Debian DSA-6291-1 is out."
+draft: false
+lang: en
+---
+
+CVE-2026-33555 is a request smuggling vulnerability in HAProxy's HTTP/3 implementation. Debian Security Advisory DSA-6291-1 published on May 22. If you run HAProxy as a reverse proxy or load balancer with HTTP/3 (QUIC) enabled, this is the patch you apply now.
+
+## What the bug does
+
+The HTTP/3 parser does not check that the received body length matches the previously announced `content-length` header when the stream closes via a frame with an empty payload. A single zero-byte QUIC FIN packet is enough to desynchronize HAProxy from its backend connection pool. Once desynchronized, an attacker can smuggle crafted requests across sessions that belong to completely different users, including users on different frontend protocols.
+
+Request smuggling vulnerabilities in load balancers have a consistent history of being escalated into authentication bypass and cache poisoning. This one sits at the HTTP/3 parsing layer, which is newer territory with less production hardening than HTTP/1 or HTTP/2.
+
+## Affected scope
+
+HAProxy versions 2.6 through 3.3.5 with `USE_QUIC=1` are affected. Upstream fixes landed in 3.3.6, 3.2.15, 3.0.19, 2.8.20, and 2.6.25. The Debian Trixie package fix is `3.0.11-1+deb13u3`.
+
+If you have HTTP/3 disabled -- `USE_QUIC` was not compiled in, or QUIC frontends are not configured -- you are not exposed.
+
+## What to do
+
+First question: do you actually need HTTP/3 on this HAProxy instance? If the answer is no, disable it and remove the attack surface entirely. If yes, update.
+
+```bash
+# Check HAProxy version and QUIC support
+haproxy -vv | grep -E 'Version|QUIC'
+
+# Debian Trixie
+apt-get update && apt-get install haproxy
+```
+
+After update on Trixie you should see `3.0.11-1+deb13u3` or later.
+
+The broader lesson: QUIC support in production proxies is relatively young. HTTP/3 edge cases like this will keep appearing as more parsers hit more real traffic. Treat it accordingly.
+
+---
+
+*Sources: [Debian DSA-6291-1](https://lists.debian.org/debian-security-announce/2026/msg00202.html); [CVE-2026-33555 technical writeup](https://r3verii.github.io/cve/2026/04/14/haproxy-h3-standalone-fin-smuggling.html); [Tenable CVE-2026-33555](https://www.tenable.com/cve/CVE-2026-33555)*

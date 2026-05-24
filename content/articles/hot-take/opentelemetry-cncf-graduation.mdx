@@ -1,0 +1,41 @@
+---
+title: "OpenTelemetry graduates in CNCF -- the debate is over"
+format: hot-take
+slug: opentelemetry-cncf-graduation
+pathway: devops
+tags:
+  - opentelemetry
+  - cncf
+  - observability
+  - otel
+  - tracing
+  - metrics
+publishedAt: 2026-05-24T12:00:00+02:00
+excerpt: "OpenTelemetry reached CNCF Graduated status on May 21. Over 12,000 contributors, second-highest project velocity in CNCF. If your team hasn't standardized on OTel yet, this is the signal."
+draft: false
+lang: en
+---
+
+On May 21, 2026, CNCF announced that OpenTelemetry has reached Graduated status -- the highest maturity level in the CNCF project lifecycle. The announcement came at Observability Summit in Minneapolis.
+
+Graduation requires a third-party security audit, a governance review, and demonstrated broad adoption. OpenTelemetry passed all three. The project has over 12,000 contributors from more than 2,800 companies. Among the 240+ projects in the CNCF ecosystem, it ranks second in project velocity -- behind only Kubernetes.
+
+## What graduation actually changes
+
+Nothing technical. The code was already production-ready before this announcement. OTel's SDK and Collector have been running in large production environments for years. The APIs are stable. The specification is implemented across every major language.
+
+What changes is the institutional signal. "CNCF Graduated" is the kind of phrase that makes internal procurement easier and vendor evaluation cleaner. If your team has been waiting for an official no-brainer before committing to OTel as the observability standard, this is it.
+
+The vendor ecosystem read the room months ago. Most major observability platforms -- Grafana, Datadog, Honeycomb, Dynatrace -- already treat OTel as the default ingest format. The graduation formalizes what the market already decided.
+
+## If you are still on vendor-specific agents
+
+The case for switching is straightforward: OTel gives you traces, metrics, and logs under a single API and SDK. You instrument once, export anywhere. Switching backends does not mean re-instrumenting your code.
+
+The Collector model is what makes this practical. You run it as a sidecar or daemon, configure exporters to your backend, and your application code stays clean of backend-specific logic.
+
+OpenTelemetry moved from Incubating to Graduated on May 11, 2026. The public announcement followed ten days later.
+
+---
+
+*Sources: [CNCF announcement May 21](https://www.cncf.io/announcements/2026/05/21/cloud-native-computing-foundation-announces-opentelemetrys-graduation-solidifying-status-as-the-de-facto-observability-standard/); [OpenTelemetry graduation blog](https://opentelemetry.io/blog/2026/otel-graduates/)*

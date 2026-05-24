@@ -1,0 +1,44 @@
+---
+title: "OpenBSD 7.9: heterogeneous CPU scheduling and socket splicing"
+format: hot-take
+slug: openbsd-79-release
+pathway: devops
+tags:
+  - openbsd
+  - bsd
+  - networking
+  - kernel
+  - release
+publishedAt: 2026-05-24T11:00:00+02:00
+excerpt: "OpenBSD 7.9 shipped May 19. Two standout additions: a scheduler that handles mixed performance and efficiency cores, and unlocked socket splicing for better multi-core throughput."
+draft: false
+lang: en
+---
+
+OpenBSD 7.9 released on May 19, 2026 -- the 60th release in the project's history. Two additions are worth paying attention to if you run OpenBSD in any networking or routing capacity.
+
+## Heterogeneous CPU scheduling
+
+Modern x86 and ARM chips ship with a mix of core types: high-performance cores, efficiency cores, and sometimes SMT siblings. OpenBSD 7.9 adds a mechanism to tell the scheduler which cores to use and which to leave alone.
+
+The new `hw.blockcpu` sysctl takes a four-letter sequence: `S` (SMT), `P` (performance), `E` (efficiency, roughly 50-80% speed), `L` (lethargic). Setting this lets you exclude specific core types from the scheduler. Currently works on amd64 and arm64.
+
+This is useful in edge routing scenarios where you want predictable latency and prefer to hand certain cores to specific workloads. It is not autopilot -- you are telling the kernel what to avoid, not what to optimize for.
+
+## Socket splicing improvements
+
+Socket splicing is a kernel mechanism that moves data between two network sockets without copying through userspace. The data path goes kernel to kernel, bypassing the syscall overhead of read/write cycles. OpenBSD 7.9 unlocks socket splicing to work across multiple processors simultaneously -- previously there were serialization constraints that limited throughput on multi-core systems.
+
+For anything using OpenBSD as a proxy or traffic forwarder, this is a meaningful improvement. If you run relayd or a custom socket-based forwarding setup, the ceiling just got higher.
+
+## Other changes
+
+The release also adds basic 802.11ax (Wi-Fi 6) support and expands VMM virtualization capabilities. Driver improvements cover multiple architectures.
+
+The release ships on the project's fixed six-month cycle. OpenBSD's release cadence is one of the things that makes it predictable in production -- you know when the next one is coming and roughly what level of change to expect.
+
+Worth watching: whether the socket splicing throughput improvements show up in community benchmarks for relayd-based setups.
+
+---
+
+*Sources: [OpenBSD 7.9 release page](https://www.openbsd.org/79.html)*
