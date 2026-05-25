@@ -27,6 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: { canonical: url },
     description: meta.excerpt,
     openGraph: {
+      siteName: 'Patch Window',
       title: meta.title,
       description: meta.excerpt,
       type: 'article',
@@ -34,6 +35,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       publishedTime: meta.publishedAt,
       modifiedTime: meta.updatedAt,
       tags: meta.tags,
+      images: [
+        {
+          url: 'https://patchwindow.serverdigital.net/opengraph-image.png',
+          width: 1200,
+          height: 630,
+          alt: meta.title,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',

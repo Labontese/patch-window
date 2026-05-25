@@ -18,10 +18,19 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://patchwindow.serverdigital.net/' },
   openGraph: {
     type: 'website',
+    siteName: 'Patch Window',
     title: 'Patch Window: Linux, DevOps & AI in production homelabs',
     description:
       'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
     url: 'https://patchwindow.serverdigital.net/',
+    images: [
+      {
+        url: 'https://patchwindow.serverdigital.net/opengraph-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Patch Window — Linux, AIOps, and the production homelab',
+      },
+    ],
   },
 }
 
