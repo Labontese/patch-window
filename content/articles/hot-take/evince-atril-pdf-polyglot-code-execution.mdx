@@ -12,7 +12,7 @@ tags:
   - linux-desktop
   - security
 publishedAt: 2026-05-22T09:30:00+02:00
-excerpt: "GTK-based PDF readers on Linux -- Evince and Atril -- contain an argument injection vulnerability in ev_spawn(). A crafted PDF with a malicious page label or named destination is enough to trigger code execution."
+excerpt: "Evince and Atril have an argument injection bug in ev_spawn(). Opening a crafted PDF on GNOME or MATE runs arbitrary code. No patch — avoid untrusted PDFs."
 draft: false
 lang: en
 ---

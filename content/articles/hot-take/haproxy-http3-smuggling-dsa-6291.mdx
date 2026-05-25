@@ -12,7 +12,7 @@ tags:
   - request-smuggling
   - security
 publishedAt: 2026-05-24T10:00:00+02:00
-excerpt: "CVE-2026-33555: HAProxy's HTTP/3 parser skips body size validation on stream close, enabling request smuggling. One zero-byte QUIC packet is enough. Debian DSA-6291-1 is out."
+excerpt: "CVE-2026-33555: HAProxy HTTP/3 parser skips body size validation on stream close. One zero-byte QUIC DATA frame enables request smuggling. Patch via DSA-6291."
 draft: false
 lang: en
 ---
