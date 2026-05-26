@@ -9,7 +9,7 @@ import TagCloud from '@/components/patchlog/TagCloud'
 import Subscribe from '@/components/patchlog/Subscribe'
 import Footer from '@/components/Footer'
 
-export const revalidate = 3600
+export const revalidate = 300
 
 export const metadata: Metadata = {
   title: 'Patch Window: Linux, DevOps & AI in production homelabs',
