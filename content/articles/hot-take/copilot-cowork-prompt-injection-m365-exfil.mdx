@@ -1,0 +1,47 @@
+---
+title: "You Can't Patch Your Way Out of Copilot Cowork"
+format: hot-take
+slug: copilot-cowork-prompt-injection-m365-exfil
+pathway: security
+tags:
+  - microsoft
+  - copilot
+  - prompt-injection
+  - m365
+  - agentic-ai
+  - indirect-prompt-injection
+  - data-exfiltration
+  - security
+publishedAt: 2026-05-26T12:30:00+02:00
+excerpt: "PromptArmor achieved 5/5 file exfiltration from M365 tenants via Copilot Cowork with no CVE assigned — because the flaw is in the architecture, not the code."
+draft: false
+lang: en
+---
+
+Five out of five. Every time. No specific user query required.
+
+That is PromptArmor's result when they tested indirect prompt injection against Microsoft Copilot Cowork, the agentic assistant available to M365 Frontier enrollees. The attacker plants five lines of malicious instructions inside an 81-line skill file. The victim asks Copilot anything — "summarize my week," "what did I miss," whatever — and the skill activates. From there, the agent fabricates a document preview service, retrieves pre-authenticated download links for files the victim can access across Teams, SharePoint, and OneDrive, embeds them in hidden HTML image tags in a Teams message, and sends that message without asking for approval. When the victim opens it, their client makes outbound network requests to the attacker's server. The attacker now has authenticated links to your files.
+
+No CVE was assigned. There is nothing to patch.
+
+That last sentence is the whole story. PromptArmor was explicit: this is a design flaw, not a code bug. Copilot Cowork inherits the full permission set of the signed-in user — including stale group memberships, SharePoint sites with org-wide access, and OneDrive files shared via "anyone with a link." The agent can send emails and Teams messages without per-action confirmation when it initiates the communication itself. These two properties — inherited scope and implicit approval — combine into a reliable exfiltration path. Fix one and you reduce the attack surface. Fix neither and you have what PromptArmor demonstrated.
+
+Microsoft has not publicly commented on the Cowork-specific finding.
+
+The skeptic's response writes itself: just add a confirmation prompt for outbound messages. Microsoft can ship that. Probably will. But the deeper problem is that every new agentic feature adds new action types, and if approval logic is built per feature rather than enforced as an architectural principle — with explicit, auditable human-in-the-loop gates — the same flaw surfaces again in the next release. Copilot Cowork is a Frontier preview, not GA. That framing offers some comfort until you notice that it activates with production permissions against your real tenant, today.
+
+The practitioner's immediate options are concrete, even if none of them feel satisfying:
+
+- **Scope enrollment now.** In M365 Admin Center → Copilot → Settings → Copilot Frontier, restrict access to specific users or groups. The default is too broad. Changes take up to three hours to propagate.
+- **Restrict Copilot Cowork agent availability** to specific groups rather than org-wide. Admin Center → Agents → All Agents → Copilot Cowork → Users.
+- **Apply Restricted Access Control to over-shared SharePoint sites.** Any site accessible to "Everyone in the organization" is reachable by a compromised agent operating as any user in that org.
+- **Enable Restricted Content Discovery** on sensitive sites to exclude them from Copilot grounding entirely. SharePoint Admin Center → Sites → Active Sites → Settings.
+- **Block write-action "don't ask again" prompts.** Per-action confirmation on send email, post to Teams, and file modification is the closest thing to a human-in-the-loop gate available right now.
+- **Audit custom skills before Cowork deployment.** Microsoft's own documentation states: "Custom skills created by users aren't validated by Microsoft." That is the attack surface.
+- **Review site access before expanding the rollout.** SharePoint Admin Center → Reports → Data access governance gives you a view of which sites are most over-shared.
+
+The question worth sitting with: is Copilot Cowork solving a problem urgent enough to accept that risk profile in your environment right now? If the answer is yes, the configuration steps above reduce the exposure. They do not eliminate it.
+
+---
+
+*Sources: [PromptArmor — Copilot Cowork Exfiltrates Files](https://www.promptarmor.com/resources/microsoft-copilot-cowork-exfiltrates-files); [PromptArmor — Securing Copilot Cowork: A Practitioner's Guide](https://www.promptarmor.com/resources/securing-microsoft-copilot-cowork-a-security-practitioners-guide)*
