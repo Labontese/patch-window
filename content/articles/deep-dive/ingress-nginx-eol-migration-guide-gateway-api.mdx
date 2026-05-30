@@ -1,0 +1,120 @@
+---
+title: "Migrating from ingress-nginx: a practical guide"
+metaDescription: "ingress-nginx was archived March 24, 2026. ~50% of cloud-native clusters still run it. Here is what a real migration looks like: Gateway API, Traefik, Cilium, Kong — options, trade-offs, and friction points nobody warns you about."
+format: deep-dive
+slug: ingress-nginx-eol-migration-guide-gateway-api
+pathway: sysadmin-craft
+tags:
+  - ingress-nginx
+  - kubernetes
+  - gateway-api
+  - traefik
+  - cilium
+  - kong
+  - networking
+  - migration
+publishedAt: 2026-05-29T10:00:00+02:00
+excerpt: "ingress-nginx was archived on March 24, 2026. About half of cloud-native environments still run it. Here is what a real migration looks like: the options, the trade-offs, and the parts nobody tells you about upfront."
+draft: false
+lang: en
+---
+
+`kubernetes/ingress-nginx` went end-of-life in March 2026. The repository was archived and moved to read-only on March 24, 2026. No more security patches. No more CVE fixes. We covered the announcement when it happened — if you need the "why," that piece has the full timeline.
+
+This is the follow-up: what an actual **ingress-nginx migration** looks like, which controllers are worth considering, and where you will hit friction that the official migration guides do not warn you about.
+
+**The short answer:** pick Gateway API as your destination, use `ingress2gateway` v1.0 to generate a baseline, and run your new controller in parallel before decommissioning anything.
+
+## What you are migrating to
+
+The Kubernetes project is steering toward **Gateway API** as the standard replacement for the `Ingress` object. Gateway API reached GA in 2024 and is now the de facto standard for Kubernetes traffic management.
+
+It replaces the flat `Ingress` object with a three-layer model:
+
+- **GatewayClass**: defines the controller type (Cilium, Traefik, NGINX Gateway Fabric, etc.)
+- **Gateway**: defines the listener — ports, protocols, TLS — managed by the platform team
+- **HTTPRoute / TCPRoute / GRPCRoute**: defines routing rules, managed by app teams
+
+The split is deliberate. ingress-nginx put everything in one object, which made it easy to run and hard to govern. Gateway API separates infrastructure from application concerns. That is useful in organizations with multiple teams and shared clusters. It is friction in homelabs or small setups where one person owns everything.
+
+Before picking a controller, decide which model fits your situation.
+
+[INTERN LÄNK: Gateway API getting started guide]
+
+## The contenders
+
+### Traefik
+
+If you already run Traefik for reverse proxying outside Kubernetes, or you operate a homelab, Traefik is the least painful on-ramp. It supports both native Ingress resources and Gateway API, so you can migrate incrementally without cutting over all at once.
+
+One correction worth making explicitly: as of Traefik v3.2, GRPCRoute support is included, along with full HTTPRoute core and extended feature conformance for Gateway API v1.4.0. Earlier claims that GRPCRoute lagged behind are no longer accurate. The practical gap with Cilium is narrower than it was a year ago.
+
+Traefik's CRDs are still their own thing — `IngressRoute`, `Middleware` — which work well once you know them but do not translate cleanly to Gateway API objects. If you have invested heavily in `IngressRoute`, factor that into your migration scope.
+
+### Cilium
+
+Cilium implements Gateway API natively, has full CNCF backing, and ships an Ingress compatibility mode that can read existing `Ingress` resources while you migrate. The eBPF-based data plane routes traffic at the kernel level rather than through a userspace proxy, which means lower overhead at scale.
+
+The constraint matters and is worth stating plainly: Cilium's Gateway API implementation is embedded in the Cilium operator and agent, not a standalone controller. This is architecturally deliberate — Cilium treats ingress as an extension of the CNI layer, not a separate component. The practical consequence is that upgrading the gateway implementation often means upgrading the CNI itself, which is a higher-risk operation than updating a standalone controller.
+
+If you are not already using Cilium as your CNI, adopting it for ingress means either migrating your entire network layer or running it alongside your existing CNI. Teams on Calico, Flannel, or similar CNIs who want to migrate ingress only should factor this in. It is not a blocker, but it is not zero cost.
+
+For greenfield clusters or teams already on Cilium, this is the obvious choice.
+
+### Kong
+
+Kong positions itself as an API gateway that also handles ingress. If your use case includes rate limiting, authentication plugins, request transformation, or service mesh integration at the gateway level, Kong is worth evaluating.
+
+The migration tooling is more mature than it was a year ago. Kong's `nginx-kong-migrator` tool supports 25+ ingress-nginx annotations across multiple categories, and includes a web-based dashboard that lets you browse, analyze, and migrate Ingress resources interactively. It also supports outputting to Gateway API HTTPRoute format, not just Kong's own CRDs.
+
+The operational model is heavier than Cilium or Traefik. Kong runs a separate admin API, persists configuration, and has a different mental model than a pure Kubernetes controller. If you do not need API gateway features, you are carrying that complexity for nothing.
+
+### F5 NGINX Ingress Controller and NGINX Gateway Fabric
+
+F5 now maintains two separate products for this space, which matters for how you evaluate them.
+
+**NGINX Ingress Controller** uses the same NGINX data plane as ingress-nginx, with a different annotation namespace (`nginx.org/` instead of `nginx.ingress.kubernetes.io/`). It is the lowest-friction continuity option if you want familiar behavior without architectural change. The open source version covers most use cases; the commercial NGINX Plus tier adds high availability, advanced security, and session persistence features.
+
+**NGINX Gateway Fabric** is F5's dedicated Gateway API implementation. It is conformant under CNCF criteria and is one of the more widely used Gateway API solutions. If you are committing to Gateway API, NGINX Gateway Fabric is the F5 path — NGINX Ingress Controller and NGINX Gateway Fabric are complementary, not competing products.
+
+[INTERN LÄNK: NGINX Gateway Fabric overview]
+
+## Where migration actually stalls
+
+**Annotations that encode logic.** `nginx.ingress.kubernetes.io/configuration-snippet` lets you inject raw NGINX configuration. There is no Gateway API equivalent. Every snippet needs to be analyzed and translated into HTTPRoute filters or policy objects, manually, one by one. This is the most labor-intensive part of any complex migration. `ingress2gateway` v1.0 added translation for header manipulation, GRPC, canary routing, path rewriting, timeouts, CORS, and several other annotation categories, which significantly reduces manual work — but configuration snippets still require human judgment.
+
+**TLS management.** cert-manager integrations work differently with Gateway API. With ingress-nginx, you annotate each Ingress resource. With Gateway API, TLS attaches to the Gateway object at the listener level. This creates a governance split: cluster operators own the Gateway, app teams own routes — which means per-service self-service TLS provisioning is not straightforward.
+
+cert-manager is working on this. The `XListenerSet` resource in Gateway API's experimental channel addresses exactly this problem, and cert-manager 1.20 (released February 2026) added experimental XListenerSet support behind a feature flag. If you rely on per-service cert-manager automation, check the current status before assuming it works the same way.
+
+**Namespace boundaries.** Gateway API's cross-namespace routing requires explicit `ReferenceGrant` objects. This is a security feature — routes cannot reference services across namespaces without explicit permission — but it means any setup where ingress-nginx was reaching across namespaces without restriction needs corresponding grants added.
+
+**Tooling that assumes Ingress.** CI/CD pipelines, Helm charts, GitOps manifests, and monitoring dashboards that watch Ingress objects will need updating. This is not complicated but it is spread across many files and systems. Do an audit before you start.
+
+## The migration sequence that actually works
+
+1. **Inventory.** `kubectl get ingress --all-namespaces` is your starting point. Know what you have before touching anything.
+
+2. **Run `ingress2gateway` v1.0.** The tool converts standard Ingress manifests to Gateway API objects and flags what it cannot convert. As of v1.0 (released March 2026), it supports multiple output emitters including standard Gateway API, Envoy Gateway, and kgateway. It will not handle arbitrary configuration snippets, but its annotation coverage is substantially better than earlier versions.
+
+3. **Pick your controller and install it alongside ingress-nginx.** Do not decommission ingress-nginx yet. Run both. Route test traffic through the new controller.
+
+4. **Migrate services one at a time.** Start with internal or low-criticality services. Validate that routing, TLS, and health checks behave identically before moving production workloads.
+
+5. **Handle cert-manager and monitoring.** Once routing is validated, migrate certificate management and update any monitoring that watches Ingress objects.
+
+6. **Decommission ingress-nginx.** Only after everything is running on the new controller and you have monitored it through at least one incident cycle.
+
+The fastest migration I have seen done well was two weeks for a cluster with around 40 Ingress resources. The slowest was an ongoing migration in month three because they started by decommissioning ingress-nginx first and tried to work backward.
+
+## Recommendation
+
+For most teams: Cilium if you can commit to it as your CNI and want the tightest integration with your network layer. Traefik if you want lower operational complexity, already run it, or prefer a standalone controller that does not require CNI changes. NGINX Gateway Fabric if you are an NGINX shop and want Gateway API conformance without changing your data plane.
+
+Do not pick a controller based on the name you recognize. Pick it based on what you actually need at the gateway layer, what your team can operate, and whether the Gateway API conformance level covers your routing requirements. The [Gateway API conformance report](https://gateway-api.sigs.k8s.io/implementations/) lists 12 conformant implementations as of May 2026.
+
+The project gave more than a year of warning. The repository is now read-only. The ingress controller you are running right now is not getting security updates.
+
+---
+
+*Sources: [Ingress NGINX Retirement — kubernetes.io, 2025-11-11](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/); [Kubernetes Steering Committee statement, 2026-01-29](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/); [Gateway API conformance report](https://gateway-api.sigs.k8s.io/implementations/); [ingress2gateway v1.0 release](https://github.com/kubernetes-sigs/ingress2gateway/releases/tag/v1.0.0); [cert-manager Gateway API announcement, 2025-11-26](https://cert-manager.io/announcements/2025/11/26/ingress-nginx-eol-and-gateway-api/); [Cilium Gateway API docs](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/); [NGINX Gateway Fabric roadmap](https://blog.nginx.org/blog/the-nginx-kubernetes-open-source-roadmap-first-half-of-2026); [Kong nginx-kong-migrator](https://github.com/Kong/nginx-kong-migrator)*

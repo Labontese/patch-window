@@ -1,0 +1,109 @@
+---
+title: "OTel for AI agents: same tool, new conventions"
+format: deep-dive
+slug: opentelemetry-genai-agent-observability-semantic-conventions
+pathway: aiops-observability
+tags:
+  - opentelemetry
+  - observability
+  - ai-agents
+  - llm
+  - genai
+  - jaeger
+  - tracing
+publishedAt: 2026-05-29T11:00:00+02:00
+excerpt: "OpenTelemetry graduated at CNCF on 21 May 2026. It now has developing semantic conventions for LLM spans and agent spans. If you already instrument microservices with OTel, here is what changes when you add AI to the stack."
+draft: false
+lang: en
+---
+
+OpenTelemetry graduated at CNCF on 21 May 2026. We covered that announcement — it formalizes what the market already decided. The more interesting development is what OTel is doing with GenAI observability.
+
+**The short version:** OTel now defines standard attribute names for LLM calls and agent workflows. If you run OTel today, your existing SDK and Collector handle these spans. The difference is what you measure and what you do with it.
+
+The project has published semantic conventions specifically for LLM operations and AI agent workflows. These conventions are currently in *development* status — not yet declared stable — but stable enough in practice that major frameworks are already shipping emitters against them. [INTERN LÄNK: opentelemetry getting started]
+
+## The new conventions: what they actually specify
+
+The OTel GenAI semantic conventions define standard attribute names for two categories of operations.
+
+**LLM spans** cover individual inference calls. The conventions specify how to record:
+
+- `gen_ai.provider.name` — the model provider (openai, anthropic, gcp.vertex\_ai, etc.)
+- `gen_ai.request.model` — which model was requested
+- `gen_ai.response.model` — which model actually responded (can differ)
+- `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` — token consumption
+- `gen_ai.operation.name` — what kind of call (chat, embeddings, execute\_tool, invoke\_agent)
+
+> **A note on `gen_ai.system`:** Earlier versions of the spec defined a `gen_ai.system` attribute. It is now deprecated in favour of `gen_ai.provider.name`. If you see examples using `gen_ai.system`, they reference the older convention. The underlying string values (openai, anthropic, gcp.vertex\_ai) remain the same.
+
+The token fields are where this gets useful for anyone running production AI workloads. Token consumption translates directly to cost. If you are making LLM calls in a service that handles variable-length user inputs, the distribution of `input_tokens` across requests tells you where your inference budget goes.
+
+**Agent spans** cover multi-step operations: tool calls, retrieval, memory reads, handoffs between agents. The conventions define how to trace a chain of agent operations as a single distributed trace, with each step as a child span. A request that goes agent → tool call → LLM inference → response produces a trace you can inspect in Jaeger or Grafana Tempo exactly as you would inspect a microservice call chain. [INTERN LÄNK: grafana tempo distributed tracing]
+
+## Jaeger v2 and the AI observability roadmap
+
+Jaeger v2, released in 2024, rewrote its core to use the OpenTelemetry Collector framework and native OTLP ingest. It is production-ready for standard distributed tracing with OTel today, and displays GenAI-convention spans — you get latency, model identity, and token counts in the trace UI.
+
+The more ambitious AI-specific work is still in progress. Adopting MCP (Model Context Protocol), ACP (Agent Client Protocol), and AG-UI for agent interaction interfaces is currently in design and proof-of-concept phases, tracked in GitHub issues #8252 and #8295. A CNCF blog post from 26 May 2026 covers the roadmap in detail.
+
+The distinction matters: Jaeger v2 works today for OTel GenAI tracing. The richer agent context visualization — showing tool calls, agent state, and handoffs as first-class UI concepts — is what the MCP/ACP work will enable. It is not yet shipped.
+
+## What this looks like in code
+
+If you already have OTel instrumentation in a Python service, adding LLM span instrumentation looks familiar. Note that GenAI attributes live under the `_incubating` path, which signals they are subject to change as the spec evolves:
+
+```python
+from opentelemetry import trace
+from opentelemetry.semconv._incubating.attributes import gen_ai_attributes
+
+tracer = trace.get_tracer(__name__)
+
+def call_llm(prompt: str, model: str) -> str:
+    with tracer.start_as_current_span("llm.chat") as span:
+        span.set_attribute(gen_ai_attributes.GEN_AI_PROVIDER_NAME, "anthropic")
+        span.set_attribute(gen_ai_attributes.GEN_AI_REQUEST_MODEL, model)
+        span.set_attribute(gen_ai_attributes.GEN_AI_OPERATION_NAME, "chat")
+
+        response = anthropic_client.messages.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        span.set_attribute(
+            gen_ai_attributes.GEN_AI_USAGE_INPUT_TOKENS,
+            response.usage.input_tokens
+        )
+        span.set_attribute(
+            gen_ai_attributes.GEN_AI_USAGE_OUTPUT_TOKENS,
+            response.usage.output_tokens
+        )
+
+        return response.content[0].text
+```
+
+The span flows through your existing Collector and lands in whatever backend you already use. No new infrastructure required if you have OTel running.
+
+Several frameworks handle this automatically. LangChain, LlamaIndex, and OpenLLMetry all have OTel exporters that emit GenAI-convention spans without manual instrumentation. Most shipped emitters aligned with the current conventions by Q1 2026. If you are using one of those, check the exporter release notes to confirm which version of the GenAI conventions it targets — the spec has been evolving and some earlier builds predated the current attribute naming. [INTERN LÄNK: LangChain observability]
+
+## The actual gap: what OTel cannot tell you
+
+Tracing LLM calls tells you latency, token usage, and which model was called. It does not tell you whether the response was useful.
+
+The observability gap in AI systems is that the interesting failures are semantic, not operational. A span can show a 200ms response with 400 output tokens and look healthy. The response might still have been wrong, hallucinated, or irrelevant to what the user asked.
+
+This is the same problem that application performance monitoring has always had with user-facing quality. OTel gives you the infrastructure view. You still need evaluation layers on top — scoring responses, tracking user corrections, measuring task completion — to know whether your AI system is working in a meaningful sense.
+
+OTel GenAI conventions give you the traces. What you do with them requires defining what "correct" looks like for your application. That definition cannot be standardized.
+
+## If you are not on OTel yet
+
+The graduation announcement is the last reasonable excuse to defer. The vendor ecosystem has committed: Grafana, Datadog, Honeycomb, and Dynatrace all treat OTel as the default ingest. If you standardize on OTel now, switching backends later does not require re-instrumenting your code.
+
+For AI workloads specifically: instrument your LLM calls with the GenAI conventions from the start, accepting that some attribute names may shift as the spec stabilises. Token consumption and latency data you collect now will be useful when you need to understand cost trends and optimize prompts. Retrofitting observability into an AI system that has been running in production without it is harder than it sounds, because the interesting questions about cost and quality tend to surface after the system has already grown. [INTERN LÄNK: cost optimization LLM production]
+
+The conventions have strong ecosystem momentum. The tooling exists. The question is whether your team has a ticket for it yet.
+
+---
+
+*Sources: [OTel GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/); [OTel GenAI attribute registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/); [CNCF graduation announcement, 21 May 2026](https://www.cncf.io/announcements/2026/05/21/cloud-native-computing-foundation-announces-opentelemetrys-graduation-solidifying-status-as-the-de-facto-observability-standard/); [How Jaeger is evolving to trace AI agents, CNCF blog 26 May 2026](https://www.cncf.io/blog/2026/05/26/how-jaeger-is-evolving-to-trace-ai-agents-with-opentelemetry/); [OpenLLMetry — OTel for LLMs](https://github.com/traceloop/openllmetry)*

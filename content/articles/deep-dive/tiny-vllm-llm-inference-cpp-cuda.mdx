@@ -1,0 +1,99 @@
+---
+title: "Tiny-vLLM: LLM Inference in C++ and CUDA"
+metaDescription: "Tiny-vLLM rebuilds vLLM's core algorithms in pure C++/CUDA — no Python required. Here's what self-hosters and engineers can learn from it."
+format: deep-dive
+slug: tiny-vllm-llm-inference-cpp-cuda
+pathway: aiops-observability
+tags:
+  - llm
+  - inference
+  - self-hosted
+  - cuda
+  - cpp
+  - vllm
+  - open-source
+publishedAt: 2026-05-30T12:00:00+02:00
+draft: false
+lang: en
+---
+
+Most people who run language models locally never think about what happens beneath the HTTP call. You hit an endpoint, tokens come back. Ollama handles the rest. That abstraction is genuinely useful — until it isn't.
+
+Tiny-vLLM is a project that cracks open the abstraction. Built by Jędrzej Maczan, it reimplements the core of vLLM's inference engine from scratch in C++ 17 and CUDA — no Python runtime, no PyTorch, no HuggingFace Transformers. Just a CMake project, a CUDA toolkit, and a single JSON header.
+
+## What is Tiny-vLLM?
+
+**Tiny-vLLM is an educational LLM inference engine written in C++ 17 and CUDA that implements the key algorithms behind vLLM — including PagedAttention, KV cache, continuous batching, and FlashAttention-like online softmax — in a single readable codebase.**
+
+The project's own description calls it "a younger and smaller sibling of vLLM," and that's accurate. It currently targets Llama 3.2 1B Instruct in BF16 format, loaded directly from a HuggingFace-format `model.safetensors` file. Building and running it takes one command: `./test.sh`.
+
+At 338 stars and 123 commits on main, it's a focused project — not a sprawling framework. There are no open issues or pull requests, which itself tells you something about the scope.
+
+## No Python Required — But What Does That Actually Mean?
+
+The dependency list is short: CUDA Toolkit 13.1, GCC 15.2.1, CMake, and `nlohmann/json` as a single header file. That's it.
+
+Compare that with vLLM, which requires Python 3.10+, a matching CUDA/PyTorch wheel, and what one infrastructure guide calls "dependency drift" as a genuine operational concern. Getting vLLM running in production means pinning PyTorch versions, managing CUDA-Python compatibility matrices, and hoping your container image doesn't silently break after an upstream update.
+
+Tiny-vLLM sidesteps all of that. There's no pip, no virtualenv, no `requirements.txt`. You write C++, you compile, you run. On Linux with an NVIDIA GPU, the build is deterministic in a way that Python-based stacks rarely are.
+
+This matters practically for people who want to understand inference engines, or for teams building custom inference tooling at a layer below what Python frameworks expose. It matters less if you need to serve production traffic today.
+
+## What's Actually Implemented
+
+The codebase covers more ground than you might expect from an "educational" project:
+
+- **Full forward pass** — prefill and decode phases
+- **KV cache** — with both static and continuous batching
+- **PagedAttention** — paged KV cache system with buffer reuse
+- **Online softmax** — a FlashAttention-style numerically stable attention mechanism
+- **Grouped-Query Attention (GQA)** — the variant used in Llama 3.x
+- **RoPE** — rotary position embeddings
+- **RMSNorm** — with parallel tree reduction on GPU
+- **Matrix multiplication** — via `cublasGemmEx` (cuBLAS v2)
+- **SiLU activation**, causal masking, argmax token selection
+
+These are not toy stubs. PagedAttention is the key innovation that made vLLM's memory efficiency viable — the idea that KV cache doesn't need to be stored in contiguous GPU memory, but can instead be managed in pages like virtual memory. Implementing it from scratch in CUDA, and reading through that implementation, teaches you more than any blog post about the concept.
+
+The GPU requirement is real: the project was tested on an RTX 5090 with CUDA 13.1 on Linux 6.19.8. Older cards with lower compute capability may need path adjustments in `CMakeLists.txt`.
+
+## How It Compares to Ollama and llama.cpp
+
+The inference ecosystem in 2026 has clear tiers, and Tiny-vLLM doesn't fit neatly into any of them — which is the point.
+
+**Ollama** is the easiest path to running a model locally. Single command install, automatic GGUF quantization selection, OpenAI-compatible API out of the box. But it's sequential by design — not built for batched serving — and it wraps llama.cpp rather than exposing the underlying mechanics.
+
+**llama.cpp** is also C++, and it's the engine that powers Ollama and LM Studio. It has the broadest hardware support of anything in the ecosystem: NVIDIA via CUDA, AMD via ROCm and HIP, Apple Silicon via Metal, and x86 CPUs with AVX512. It ships an OpenAI-compatible HTTP server via `llama-server`. For cross-platform self-hosting, llama.cpp is usually the right answer.
+
+**vLLM** is the production default for teams running multi-user serving on NVIDIA GPUs — typically 5 to 20 concurrent users. It supports tensor parallelism, pipeline parallelism, and OpenAI-compatible endpoints. The tradeoff is a heavier Python dependency stack.
+
+**Tiny-vLLM** doesn't compete with any of these. It serves one model, on one GPU family, in an environment that requires cutting-edge hardware. What it offers instead is a complete, readable implementation of the algorithms that make the others fast.
+
+[INTERN LÄNK: vLLM production setup guide]
+[INTERN LÄNK: llama.cpp self-hosting]
+[INTERN LÄNK: Ollama getting started]
+
+## Should You Run This in Production?
+
+No. The project is explicit about this, and the constraints back it up: a single supported model, CUDA 13.1 requirement, no HTTP server, no OpenAI-compatible API, no multi-GPU support, no quantization options. Tested on hardware most teams don't have yet.
+
+For production self-hosting, the decision tree in 2026 still looks like: single user on consumer hardware → Ollama or llama.cpp; multi-user NVIDIA serving → vLLM or SGLang; maximum VRAM efficiency on 24–48 GB cards → ExLlamaV3 via TabbyAPI. HuggingFace TGI moved to maintenance mode in March 2026, so new deployments should migrate away from it.
+
+## What Tiny-vLLM Is Actually For
+
+There's a specific kind of engineer who benefits from this project: someone who has run models in production, knows how to configure vLLM, and wants to understand *why* it works the way it does.
+
+PagedAttention makes intuitive sense once you've seen it implemented without the abstractions. Online softmax — the trick that makes FlashAttention memory-efficient by computing stable softmax in a single pass — is easier to reason about when it's 200 lines of CUDA rather than a compiled kernel you can't read.
+
+We spend a lot of time in this field at the interface layer. Tiny-vLLM is a reminder that the interesting problems live one layer down, and that C++ and CUDA are still the language of anything that needs to be genuinely fast on a GPU.
+
+If you want to understand LLM inference at the algorithm level, this is one of the clearest self-contained implementations available right now. Clone it, read the attention code, trace through a forward pass. The `test.sh` script is short enough to fit in a terminal window.
+
+---
+
+## Sources
+
+- [tiny-vllm — GitHub (jmaczan)](https://github.com/jmaczan/tiny-vllm)
+- [vLLM, Ollama, LM Studio, llama.cpp: Choosing the best LLM inference engine in 2026 — BIZON](https://bizon-tech.com/blog/best-llm-inference-engines)
+- [How to Use vLLM for Production LLM Inference 2026 — Markaicode](https://markaicode.com/tutorial/how-to-use-vllm/)
+- [vLLM GPU installation docs](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/)

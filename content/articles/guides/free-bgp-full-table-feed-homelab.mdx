@@ -1,0 +1,478 @@
+---
+title: "BGP Full Table in Your Homelab: Deep Dive"
+metaDescription: "Connect your homelab to a free live BGP full table feed. Deep dive into RPKI, path selection, communities, monitoring, and security with BIRD2 and FRRouting."
+format: tutorial
+slug: free-bgp-full-table-feed-homelab
+pathway: sysadmin-craft
+tags:
+  - bgp
+  - networking
+  - homelab
+  - frrouting
+  - bird2
+  - routing
+  - rpki
+  - communities
+  - bgp-security
+  - exabgp
+  - route-filtering
+publishedAt: 2026-05-30T13:00:00+02:00
+draft: false
+lang: en
+---
+
+A BGP full table feed is a live session with a route server that hands you every prefix the global internet knows about — roughly 1,050,000 IPv4 routes and 241,800 IPv6 routes as of early 2026. Instead of simulating routing with static routes or GNS3 prefixes, you get the actual Default-Free Zone (DFZ) table that real ISP routers carry.
+
+This is not just an impressive number to look at. It is a working dataset for learning BGP path selection, writing real filter policies, validating route origin security with RPKI, and understanding why the internet routes traffic the way it does. This guide takes you from first session to deep experimentation.
+
+## The free feed: AS57355
+
+Łukasz Bromirski — dual CCIE (#15929 in Routing & Switching and Service Providers), former country CTO at Cisco Poland, now CPO at IS-Wireless — runs an open BGP route server specifically for lab and learning use. It has been running for years and is one of the most widely referenced free full-table sources in the European networking community.
+
+The service is offered as-is, with no uptime guarantee. It is **not** for production. Use it for learning, testing, and building intuition around large routing tables.
+
+**Connection parameters:**
+
+| | IPv4 | IPv6 |
+|---|---|---|
+| Remote AS | 57355 | 57355 |
+| Remote IP | 85.232.240.179 | 2001:1A68:2C:2::179 |
+| Your AS | 65001 (or any private ASN) | same |
+| Session type | eBGP multihop | eBGP multihop |
+| Timers | hold 7200 / keepalive 3600 | same |
+| Auth | none | none |
+
+You need a publicly reachable IPv4 or IPv6 address. The server will not accept inbound prefix announcements — you must filter outbound to zero.
+
+## Hardware and memory reality check
+
+Carrying the full IPv4 table in software requires real RAM. With FRRouting on Linux, **2 GB is the practical minimum** for bgpd and zebra together; 1 GB is not enough. Add IPv6 and you want at least 3–4 GB free for routing processes alone.
+
+If your homelab machine has 8 GB or more total RAM, you are fine. A Raspberry Pi 4 (4 GB) can technically hold the IPv4 table but leaves little headroom. An old desktop or a small VM on Proxmox with 4–8 GB is the comfortable zone.
+
+The IPv4 table grows roughly 50,000–55,000 prefixes per year, so plan ahead.
+
+[INTERN LÄNK: proxmox homelab setup]
+
+## BIRD2 configuration
+
+BIRD2 is the daemon of choice for anyone who values a clean, expressive configuration language and low memory overhead. Install it on Debian/Ubuntu:
+
+```bash
+apt install bird2
+```
+
+A minimal `/etc/bird/bird.conf` for receiving the full IPv4 table:
+
+```
+router id YOUR.PUBLIC.IPv4.ADDRESS;
+
+protocol device { }
+
+protocol direct {
+    disabled;
+}
+
+protocol kernel {
+    ipv4 {
+        import none;
+        export none;   # do not inject into OS routing table — lab only
+    };
+}
+
+filter drop_all {
+    reject;
+};
+
+protocol bgp bromirski_v4 {
+    description "AS57355 full table feed";
+    local as 65001;
+    neighbor 85.232.240.179 as 57355;
+    multihop 255;
+    hold time 7200;
+    keepalive time 3600;
+
+    ipv4 {
+        import all;
+        export filter drop_all;   # never send prefixes upstream
+    };
+}
+```
+
+For IPv6, add a second BGP block:
+
+```
+protocol bgp bromirski_v6 {
+    description "AS57355 full table feed IPv6";
+    local as 65001;
+    neighbor 2001:1A68:2C:2::179 as 57355;
+    multihop 255;
+    hold time 7200;
+    keepalive time 3600;
+
+    ipv6 {
+        import all;
+        export filter drop_all;
+    };
+}
+```
+
+Reload with `birdc configure`. Watch the session come up:
+
+```bash
+birdc show protocols bromirski_v4
+birdc show route count
+```
+
+Expect route ingestion to take a few minutes. When complete you should see around 1,050,000 routes.
+
+### Adding RPKI validation to BIRD2
+
+BIRD2 has native RTR protocol support. You connect it to a local RPKI validator (Routinator is the most common choice) and it populates ROA tables that your import filters can check:
+
+```bash
+apt install routinator
+routinator init --accept-arin-rpa
+routinator server --rtr 127.0.0.1:3323 --http 127.0.0.1:9556
+```
+
+Then extend `bird.conf`:
+
+```
+roa4 table roa_v4;
+roa6 table roa_v6;
+
+protocol rpki rpki_routinator {
+    roa4 { table roa_v4; };
+    roa6 { table roa_v6; };
+    remote 127.0.0.1 port 3323;
+    retry keep 90;
+    refresh keep 600;
+    expire keep 7200;
+}
+
+filter bgp_import_v4 {
+    # Drop RPKI-invalid prefixes
+    if (roa_check(roa_v4, net, bgp_path.last_nonaggregated) = ROA_INVALID) then {
+        print "RPKI INVALID: ", net, " via AS", bgp_path.last;
+        reject;
+    }
+    # Boost LOCAL_PREF for cryptographically verified routes
+    if (roa_check(roa_v4, net, bgp_path.last_nonaggregated) = ROA_VALID) then {
+        bgp_local_pref = 200;
+    }
+    accept;
+}
+
+protocol bgp bromirski_v4 {
+    description "AS57355 full table feed";
+    local as 65001;
+    neighbor 85.232.240.179 as 57355;
+    multihop 255;
+    hold time 7200;
+    keepalive time 3600;
+
+    ipv4 {
+        import filter bgp_import_v4;
+        import table;            # reflect ROA changes without session reset
+        export filter drop_all;
+    };
+}
+```
+
+With this configuration, BIRD2 silently drops any prefix where the announcing AS does not match a valid ROA. The feed from AS57355 will still contain RPKI-invalid prefixes — those are real-world announcements from networks that have not properly configured their ROAs. Watching them is educational.
+
+## FRRouting (FRR) configuration
+
+FRR is the other common choice, especially if you are used to Cisco-style CLI. Install on Debian 12:
+
+```bash
+apt install frr frr-rpki-rtrlib
+```
+
+Enable bgpd (and the RPKI module) in `/etc/frr/daemons`:
+
+```
+bgpd=yes
+zebra=yes
+bgpd_options="  -A 127.0.0.1 -M rpki"
+```
+
+Configure via `vtysh`:
+
+```
+router bgp 65001
+ bgp router-id YOUR.PUBLIC.IPv4.ADDRESS
+ bgp log-neighbor-changes
+ !
+ neighbor 85.232.240.179 remote-as 57355
+ neighbor 85.232.240.179 ebgp-multihop 255
+ neighbor 85.232.240.179 timers 3600 7200
+ neighbor 85.232.240.179 description AS57355 full table v4
+ !
+ address-family ipv4 unicast
+  neighbor 85.232.240.179 activate
+  neighbor 85.232.240.179 route-map RPKI-FILTER in
+  neighbor 85.232.240.179 route-map DENY_ALL out
+  neighbor 85.232.240.179 soft-reconfiguration inbound
+ exit-address-family
+!
+rpki
+ rpki cache 127.0.0.1 3323 preference 1
+ rpki polling_period 300
+ rpki expire_interval 7200
+ rpki retry_interval 600
+ exit
+!
+route-map RPKI-FILTER deny 10
+ match rpki invalid
+exit
+route-map RPKI-FILTER permit 20
+ match rpki valid
+ set local-preference 200
+exit
+route-map RPKI-FILTER permit 30
+ match rpki notfound
+exit
+!
+route-map DENY_ALL deny 10
+!
+```
+
+Note: FRR 9.x syntax uses `rpki cache tcp 127.0.0.1 3323 preference 1` with an explicit `tcp` keyword. Check your installed version with `vtysh -c "show version"`.
+
+Check status:
+
+```bash
+vtysh -c "show bgp summary"
+vtysh -c "show bgp rpki prefix-count"
+vtysh -c "show bgp ipv4 unicast statistics"
+```
+
+[INTERN LÄNK: frrouting installation debian]
+
+## BGP path selection: how the daemon picks a winner
+
+When BIRD2 or FRR receives multiple paths to the same prefix from different peers, it runs a deterministic selection algorithm. The full RFC 4271 decision process has thirteen steps, evaluated top to bottom — the first step that produces a clear winner ends the evaluation.
+
+**The order that matters most in practice:**
+
+1. **Weight** (Cisco proprietary, local to the router — not sent to peers)
+2. **LOCAL_PREF** — highest wins. This is your primary AS-wide policy lever. Set it high on preferred upstreams, low on backup paths.
+3. **Locally originated** — routes you injected yourself beat received routes at this step
+4. **AS_PATH length** — shorter wins. The primary tool for influencing *inbound* traffic from external ASes via prepending
+5. **ORIGIN** — IGP < EGP < incomplete
+6. **MED (Multi-Exit Discriminator)** — lower wins, but only comparable between paths from the same AS
+7. **eBGP over iBGP** — external paths win over internal
+8. **IGP metric to next-hop** — closest exit wins (hot-potato routing)
+9–13. Tiebreakers: oldest path, lowest router-id, lowest neighbor address
+
+Against the Bromirski feed you receive a single path per prefix (there is only one peer), so path selection is trivial. But you can experiment: set LOCAL_PREF inside your import filter and watch how BIRD2 or FRR reports it:
+
+```
+# BIRD2: force LOCAL_PREF=50 for all received routes
+filter bgp_import_v4 {
+    bgp_local_pref = 50;
+    accept;
+}
+```
+
+```bash
+# Verify
+birdc "show route for 8.8.8.0/24 all"
+```
+
+This gives you a feel for how operators tune traffic in multi-homed environments — without touching production gear.
+
+## Route filtering: prefix-lists, RPKI, and IRR
+
+There are three complementary filtering tools, each covering different failure modes:
+
+**Prefix-lists** match on exact address space. They are fast and explicit — you list what you allow or deny. Useful for clamping max-prefix lengths (reject anything longer than /24 for IPv4, /48 for IPv6) to defend against deaggregation attacks:
+
+```
+# BIRD2: reject excessively long prefixes
+filter bgp_import_v4 {
+    if net.len > 24 then reject;
+    accept;
+}
+```
+
+**RPKI (Resource Public Key Infrastructure)** is a cryptographic system that lets IP address holders sign Route Origin Authorizations (ROAs). A ROA says "AS X is authorized to originate prefix P". Your router connects to an RPKI validator (Routinator, rpki-client, or OctoRPKI) via the RTR protocol, downloads the validated ROA table, and can reject any prefix where the announcing AS does not match the ROA. As of early 2026, the global ROA table contains over 800,000 Validated ROA Payloads (VRPs).
+
+RPKI produces three outcomes per prefix:
+- **VALID** — announcement matches a ROA
+- **INVALID** — announcement contradicts a ROA (wrong AS or prefix too specific)
+- **NOT FOUND** — no ROA exists for this prefix
+
+Most operators drop INVALID and pass NOT FOUND with lower preference. Dropping NOT FOUND would break connectivity to a large fraction of the internet that has not yet deployed RPKI.
+
+**IRR (Internet Routing Registry)** predates RPKI by decades. Networks register their routing policy in databases like RIPE, RADB, and ARIN. Filtering tools like `bgpq4` can generate prefix-lists from IRR data. The weakness: IRR records are not cryptographically verified and are often stale. RPKI is authoritative where ROAs exist; IRR fills the gap for prefixes without ROA coverage. In a well-hardened network you use both.
+
+[INTERN LÄNK: bgp security fundamentals]
+
+## BGP communities in practice
+
+Communities are metadata tags attached to route announcements. They let networks signal policy information across AS boundaries without out-of-band coordination.
+
+**Standard communities** (RFC 1997) are 32 bits, traditionally written as `ASN:value` — for example `57355:100`. Because ASNs can now be 32 bits, the 16-bit ASN field in standard communities is often too small.
+
+**Extended communities** (RFC 4360) are 64 bits: an 8-byte type field plus a 6-byte value. Used for route targets in MPLS/VPN and other specialized functions.
+
+**Large communities** (RFC 8092) are 96 bits: `global-administrator:local-data-1:local-data-2`, all four bytes each. For example `57355:0:1`. Designed specifically for 32-bit ASN operators who need to encode meaningful values in all three fields.
+
+To see what communities AS57355 actually sends, look at individual routes:
+
+```bash
+# BIRD2
+birdc "show route for 1.1.1.0/24 all"
+
+# FRR
+vtysh -c "show bgp ipv4 unicast 1.1.1.0/24"
+```
+
+Look for lines like `Community: 57355:100 57355:200` in the output. Not all feeds tag extensively — AS57355 is primarily a learning feed, not a transit operator with complex community schemes. But observing even sparse community data teaches you the format.
+
+**Filtering on communities in BIRD2:**
+
+```
+filter bgp_community_filter {
+    # Drop routes tagged with a hypothetical "do not redistribute" community
+    if (57355, 666) ~ bgp_community then reject;
+    accept;
+}
+```
+
+**Filtering on large communities in FRR:**
+
+```
+route-map COMMUNITY-FILTER deny 10
+ match large-community 57355:0:666
+exit
+route-map COMMUNITY-FILTER permit 20
+exit
+```
+
+Real-world community documentation is public for most large networks. [INTERN LÄNK: bgp communities tutorial]
+
+## Monitoring and observability
+
+Running a full table feed gives you data. Making sense of it requires tooling.
+
+**RIPE Stat and BGPlay** (stat.ripe.net/bgplay) visualize AS path history over time. Enter any prefix and watch the animation of how BGP paths have changed — useful for correlating your local route observations against the global view.
+
+**BGPStream** (bgpstream.caida.org) is CAIDA's open-source toolkit for consuming BGP data at scale. V2 supports real-time streaming from RIPE RIS Live and RouteViews BMP feeds via Kafka, as well as OpenBMP for custom deployments. You can run it in live mode with no time window specified and receive a continuous stream of global BGP updates:
+
+```bash
+pip install pybgpstream
+bgpreader -p caida-bmp
+```
+
+**FRR structured logging** gives you per-session event logs without additional tooling. With `bgp log-neighbor-changes` set, FRR writes to syslog every time a neighbor goes up or down. For update-level logging, FRR also supports `debug bgp updates` which is verbose but invaluable for policy debugging.
+
+**ExaBGP** takes a different angle. Rather than acting as a router, it is a programmable BGP speaker that sends and receives BGP messages and pipes them as JSON to an external process (Python script, shell command, etc.). This makes it ideal as a passive observer: peer it with your BIRD2 or FRR instance over iBGP, and process updates in Python in real time — no production routing affected.
+
+```ini
+# exabgp.conf
+neighbor 127.0.0.1 {
+    router-id 192.0.2.1;
+    local-as 65001;
+    peer-as 65001;
+
+    family {
+        ipv4 unicast;
+    }
+
+    api {
+        processes [ dump-routes ];
+    }
+}
+
+process dump-routes {
+    run python3 /usr/local/bin/bgp_dump.py;
+    encoder json;
+}
+```
+
+ExaBGP is actively maintained (the author has also started `Ze`, a Go-based rewrite for broader network automation), available on PyPI, and packaged in Debian.
+
+## BGP in Kubernetes
+
+If your homelab runs Kubernetes, BGP is increasingly relevant for LoadBalancer IP advertisement. Two options:
+
+**MetalLB in BGP mode** is the traditional approach. You configure MetalLB as a BGP speaker; it peers with your router (pfSense, FRR, VyOS) and announces LoadBalancer service IPs via BGP. Straightforward to configure, works with any BGP-capable upstream.
+
+**Cilium BGP Control Plane** (v2, graduated in Cilium v1.18) embeds GoBGP inside the Cilium agent. Instead of a separate MetalLB component, Cilium itself handles BGP peering via `CiliumBGPPeeringPolicy` CRDs. If you are already running Cilium as your CNI, migrating to its built-in BGP support removes a component from your stack. The Cilium BGP Control Plane now works with consumer-grade BGP-capable hardware — UniFi Gateways added BGP support in firmware 4.1.10.
+
+For a homelab experimenting with the Bromirski feed: running FRR for full-table learning and MetalLB or Cilium for Kubernetes service advertisement on the same host is a natural combination. They use different BGP instances with different purposes.
+
+[INTERN LÄNK: kubernetes homelab networking]
+
+## Security: RPKI, hijacking, and what the feed teaches you
+
+BGP was designed in an era when internet participants trusted each other. It has no built-in authentication for route origin — any AS can announce any prefix. This has caused real damage.
+
+**Pakistan Telecom, February 2008.** Pakistan's national telecom attempted to block YouTube domestically by injecting more-specific routes for YouTube's prefix. Those routes leaked to an international transit provider, propagated globally, and took YouTube offline for most of the internet for roughly two hours. The fix required YouTube's upstream to filter the routes. The root cause: no mechanism to verify that Pakistan Telecom was authorized to announce YouTube's address space.
+
+**Amazon Route 53, April 2018.** Attackers announced more-specific routes for Amazon's DNS service IP space, redirecting DNS queries for MyEtherWallet to attacker-controlled servers. Users who connected to the fake site had their cryptocurrency wallets drained — over $150,000 in losses. The hijack lasted about two hours before Amazon's upstream providers intervened.
+
+Both incidents would have been stopped by RPKI filtering. In both cases, the attacker (or misconfigured network) announced prefixes without valid ROAs. A router performing Route Origin Validation would have classified those announcements as INVALID and dropped them.
+
+When you run RPKI validation against the Bromirski feed, you will see INVALID routes in your logs. These are real networks that have issued ROAs but whose BGP announcements do not match — either due to misconfiguration or because a legitimate announcement is more-specific than the ROA covers. Examining them gives you direct insight into the shape of the RPKI deployment problem on the live internet.
+
+```bash
+# FRR: list all RPKI-invalid routes in your table
+vtysh -c "show bgp ipv4 unicast rpki invalid"
+
+# FRR: count by state
+vtysh -c "show bgp rpki prefix-count"
+```
+
+RPKI covers *origin* validation — it tells you whether the originating AS is authorized to announce a prefix. It does not validate the full AS path. BGPsec (RFC 8205) extends cryptographic protection to path validation but has very limited deployment as of 2026. RPKI alone eliminates a significant class of incidents; BGPsec remains largely theoretical in production.
+
+## Alternatives to AS57355
+
+If AS57355 is unreachable from your IP block:
+
+**RouteViews** (routeviews.org) operates route collectors at multiple locations and accepts multihop peering from networks that can provide a full-table view. You need a real ASN and routable address space — not suitable for a private-ASN homelab.
+
+**RIPE RIS** is RIPE NCC's equivalent collector project with the same requirements.
+
+**DN42** is a volunteer-run BGP overlay network using private address space (172.20.0.0/14 and fd00::/8). You can peer within DN42 without a real ASN, practice BGP policy in a live network with real peers, and observe route filtering in action — without touching the public internet. The learning curve involves setting up WireGuard tunnels to existing DN42 peers.
+
+For pure observation without any routing setup, the RIPE Routing Information Service (RIS) live stream and RouteViews MRT dumps are publicly available for download and analysis with BGPStream or your own tooling.
+
+## The session will go down
+
+The AS57355 service can disappear without notice. Build your configs to be tolerant of a missing peer — use `graceful restart` if your daemon supports it, and do not rely on the feed for anything outside a dedicated lab environment. When it is up, use it hard.
+
+---
+
+## Sources
+
+- [bgp in the lab #3 — lukasz.bromirski.net](https://lukasz.bromirski.net/post/bgp-w-labie-3/)
+- [bgp in the lab #2 — lukasz.bromirski.net](https://lukasz.bromirski.net/post/bgp-w-labie-2/)
+- [BGP in 2025 — APNIC Blog](https://blog.apnic.net/2026/01/08/bgp-in-2025/)
+- [Full BGP table in Linux with FRR — Serial Port](https://serialport.org/blog/full-bgp-table-in-linux-with-frr/)
+- [RouteViews Peering Policy](https://www.routeviews.org/routeviews/2025/01/10/routeviews-peering-policy/)
+- [Łukasz Bromirski — about.me](https://about.me/lukasz.bromirski)
+- [RPKI ROA Setup for BGP — virtua.cloud](https://www.virtua.cloud/learn/en/tutorials/rpki-roa-setup-bgp)
+- [Rejecting RPKI Invalid BGP Routes — NLNOG BGP Filter Guide](https://bgpfilterguide.nlnog.net/guides/reject_invalids/)
+- [RPKI and the RTR protocol — Cloudflare Blog](https://blog.cloudflare.com/rpki-and-the-rtr-protocol/)
+- [RFC 4271 — A Border Gateway Protocol 4 (BGP-4)](https://www.rfc-editor.org/rfc/rfc4271)
+- [RFC 8092 — BGP Large Communities Attribute](https://www.rfc-editor.org/rfc/rfc8092.html)
+- [RFC 6811 — BGP Prefix Origin Validation](https://datatracker.ietf.org/doc/html/rfc6811)
+- [BGP path selection — Cisco documentation](https://www.cisco.com/c/en/us/support/docs/ip/border-gateway-protocol-bgp/13753-25.html)
+- [BGP Large Communities explanation — mariopinho.com](https://www.mariopinho.com/en/bgp-large-communities-rfc-8092-2/)
+- [BGPStream V2 — CAIDA](https://bgpstream.caida.org/v2-whats-new)
+- [BGPlay — RIPE NCC](https://stat.ripe.net/bgplay)
+- [ExaBGP — GitHub](https://github.com/Exa-Networks/exabgp)
+- [IRR hygiene in the RPKI era — APNIC Blog](https://blog.apnic.net/2022/04/07/irr-hygiene-in-the-rpki-era/)
+- [A Deeper Dive into the Amazon Route 53 BGP Hijack — MANRS](https://manrs.org/2018/04/a-deeper-dive-into-the-amazon-route-53-bgp-hijack/)
+- [BGP hijacking — Wikipedia](https://en.wikipedia.org/wiki/BGP_hijacking)
+- [Cilium BGP Control Plane — Cilium docs](https://docs.cilium.io/en/latest/network/bgp/)
+- [BGP with Cilium and UniFi — Stonegarden blog](https://blog.stonegarden.dev/articles/2025/11/bgp-cilium-unifi/)
+- [FRRouting RPKI documentation](https://github.com/FRRouting/frr/blob/master/doc/user/rpki.rst)
+- [Routinator — NLnet Labs](https://routinator.docs.nlnetlabs.nl/en/stable/)
+- [BGP router support — RPKI docs](https://rpki.readthedocs.io/en/latest/ops/router-support.html)
+- [A Brief History of BGP Incidents — Kentik Blog](https://www.kentik.com/blog/a-brief-history-of-the-internets-biggest-bgp-incidents/)

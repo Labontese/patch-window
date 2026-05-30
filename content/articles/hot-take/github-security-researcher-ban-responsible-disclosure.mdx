@@ -1,0 +1,72 @@
+---
+title: "GitHub banned a researcher. They were not wrong to."
+format: hot-take
+slug: github-security-researcher-ban-responsible-disclosure
+pathway: sysadmin-craft
+tags:
+  - security
+  - github
+  - disclosure
+  - opinion
+  - open-source
+  - windows
+  - vulnerability
+publishedAt: 2026-05-29T12:00:00+02:00
+excerpt: "GitHub banned Nightmare-Eclipse for publishing six unpatched Windows zero-days without coordination. The security community is angry. I think GitHub made the right call — and the debate we should be having is different from the one we are having."
+draft: false
+lang: en
+---
+
+GitHub banned security researcher Nightmare-Eclipse on May 23, 2026, after they published weaponized exploit code for six unpatched Windows vulnerabilities — with no coordination, no embargo, and active exploitation confirmed within days. GitLab followed with a suspension on May 26. The security community is, predictably, angry. The narrative forming is that a major platform is punishing a researcher for doing the work that keeps users safe.
+
+I do not think that is what happened. And I think the anger, while understandable, is aimed at the wrong thing.
+
+## What coordinated vulnerability disclosure actually means
+
+The disagreement is usually about timing, not about whether vulnerabilities should eventually be public. In this case, Nightmare-Eclipse began releasing working proof-of-concept exploits on April 2, 2026 — starting with BlueHammer (CVE-2026-33825), a privilege-escalation flaw granting SYSTEM access to any local user. Five more followed over six weeks: RedSun (CVE-2026-41091), UnDefend (CVE-2026-45498), YellowKey (CVE-2026-45585), GreenPlasma, and MiniPlasma. None were patched. Huntress Labs confirmed active exploitation of all three initial tools by April 10 — eight days after the first release.
+
+Coordinated disclosure — responsible disclosure, in the terminology that matters — means you tell the vendor before you tell the world. You give them a fixed window to patch. You publish after that window closes, whether they patched or not. This process exists because a working exploit in the wild is a weapon, and the people harmed by it are not GitHub or Microsoft. They are the developers and organizations who cannot patch something they do not know is broken.
+
+Publishing a zero-day without coordination is not disclosure. It is release. [INTERN LÄNK: coordinated-disclosure-explained]
+
+## The platform power argument
+
+Here is where I have more sympathy with the criticism.
+
+GitHub is not a neutral infrastructure provider. It is the dominant platform for open source software development, controlled by Microsoft, which is also a major cloud provider and software vendor — and, notably, the vendor whose products were being exploited. GitHub's terms of service give them enormous discretion to remove content and suspend accounts. When they exercise that discretion against a security researcher, it looks like a chilling effect regardless of whether it is one.
+
+The researcher losing their GitHub account is a significant professional consequence. Contributions, repositories, and professional reputation are tied to that account. A ban — permanent, not temporary — is a serious action with ripple effects that go beyond the immediate dispute.
+
+Platforms with this much power over professional infrastructure have a responsibility to be precise about when and why they act. "You published weaponized exploit code for unpatched vulnerabilities that are actively being used in attacks" is a clear reason. GitHub's [Active Malware or Exploits policy](https://docs.github.com/en/site-policy/acceptable-use-policies/github-active-malware-or-exploits) does draw this distinction explicitly: dual-use research content is permitted; content actively enabling ongoing attacks is not. That is the right framework. Whether it was applied consistently is a fair question to ask.
+
+The complicating factor here is motive. Nightmare-Eclipse was not publishing in the public interest. They were publishing in anger — explicitly retaliating against Microsoft for what they describe as a personal and financial betrayal. "They knew this would happen and they still stabbed me in the back anyway," the researcher wrote. "I was told personally by them that they will ruin my life and they did." That context does not change the technical analysis of whether the ban was justified. But it does change the framing of the story as "researcher versus platform."
+
+## The part of this debate that is missing
+
+The disclosure culture debate usually frames this as researcher freedom versus vendor interests. That framing obscures what is actually at stake.
+
+When a zero-day exploit is public and there is no patch, the people most at risk are not sophisticated security teams with threat intelligence feeds and the capacity to implement mitigations before a patch ships. Those teams will adapt. The people most at risk are small organizations, understaffed IT departments, and open source projects run by volunteers who will not hear about the exploit until they read about it in a post-incident report.
+
+In this case, the window of unpatched exposure was not hours. It was weeks. Six exploits. Six weeks. Active exploitation confirmed within days of the first release. The harm was not theoretical.
+
+Coordinated disclosure exists to protect those people. Not vendors. Not platforms. The humans running systems they cannot patch in the hours between "exploit public" and "patch available." [INTERN LÄNK: patch-management-small-teams]
+
+A researcher who publishes a working exploit without coordination may have grievances. The outcome is still a window of exposure for people who had no say in the dispute.
+
+## Where I land
+
+GitHub's ban of Nightmare-Eclipse is defensible. The content — weaponized, working exploit code for unpatched vulnerabilities confirmed to be actively exploited — falls squarely within what GitHub's own policies describe as grounds for removal. GitLab reached the same conclusion independently.
+
+The broader practice of treating uncoordinated weaponized exploit publication as a violation of platform terms is also defensible. It is not an attack on security research. It is a recognition that working exploits are not the same category of content as vulnerability writeups, proof-of-concept demonstrations without weaponizable detail, or CVE advisories. GitHub's policies make this distinction. [INTERN LÄNK: github-security-policy-explainer]
+
+The security community should push back on platform overreach when it happens. Account suspensions used to silence legitimate disclosure, slow-walk CVE assignments to avoid embarrassing patch timelines, or punish researchers for finding embarrassing vulnerabilities — all of those are real and ongoing problems worth fighting.
+
+This case does not look like that.
+
+The harder conversation is the one about whether coordinated disclosure timelines are reasonable, whether vendors like Microsoft use them as cover for indefinite inaction — a charge Nightmare-Eclipse explicitly makes about MSRC — and whether platforms like GitHub should have formal disclosure coordination policies rather than relying on terms-of-service discretion. That conversation is more productive than relitigating whether researchers should be able to publish whatever they want, whenever they want, with no coordination and no consequences.
+
+Full disclosure is not the same as irresponsible disclosure. The word "full" is doing a lot of work in that phrase. It does not mean "immediate." It does not mean "weaponized." And it does not mean "in retaliation."
+
+---
+
+*Sources: [GitHub Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies); [GitHub Active Malware or Exploits policy](https://docs.github.com/en/site-policy/acceptable-use-policies/github-active-malware-or-exploits); [CERT/CC Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD/); [CISA Coordinated Vulnerability Disclosure Program](https://www.cisa.gov/resources-tools/programs/coordinated-vulnerability-disclosure-program); [Cybernews: GitHub bans Nightmare-Eclipse](https://cybernews.com/security/github-bans-researcher-releasing-windows-zero-days/); [The Hacker News: Microsoft Slams Public Zero-Day Disclosures](https://thehackernews.com/2026/05/microsoft-slams-public-zero-day.html); [The Register: 0-day feud escalates](https://www.theregister.com/security/2026/05/28/microsoft-0-day-feud-escalates-as-researcher-threatens-another-windows-exploit-dump/5248085)*

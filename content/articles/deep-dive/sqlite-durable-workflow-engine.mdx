@@ -1,0 +1,130 @@
+---
+title: "SQLite as a Durable Workflow Engine"
+metaDescription: "When is SQLite enough for durable workflows? Compare SQLite, Postgres (DBOS), and Temporal for self-hosted workflow orchestration in 2026."
+format: deep-dive
+slug: sqlite-durable-workflow-engine
+pathway: sysadmin-craft
+tags:
+  - sqlite
+  - workflows
+  - durable-execution
+  - temporal
+  - dbos
+  - obelisk
+  - self-hosted
+publishedAt: 2026-05-30T11:00:00+02:00
+draft: false
+lang: en
+---
+
+> **Quick answer:** SQLite is enough for durable workflows when you run a single node, tolerate a small replication lag, and keep write throughput below roughly 5,000 state transitions per second. Beyond that — or when you need multi-tenant isolation, horizontal write scaling, or hard HA guarantees — reach for Postgres-backed DBOS or a dedicated orchestrator like Temporal.
+
+---
+
+The title of a recent Obelisk blog post cuts right to it: *"SQLite is all you need for durable workflows."* That is a provocative claim, and it is worth taking seriously — not to accept it uncritically, but to work out exactly where the line sits.
+
+## What "durable execution" actually means
+
+A durable workflow engine guarantees that every step survives a crash. If the process dies mid-flight, it picks up from the last completed step, not from zero. The engine writes an **execution log** — a record of every call, sleep, and return value — before handing control to the next step. On restart it replays that log deterministically until it reaches the crash point and continues from there.
+
+The question is not whether SQLite *can* store that log. It obviously can. The question is whether it can do so reliably enough for your production requirements, and whether the operational constraints are acceptable.
+
+## Obelisk: SQLite-backed, WASM-native
+
+[Obelisk](https://obeli.sk/) (v0.38.2 as of May 2026, 524 GitHub stars) is probably the most technically interesting proof-of-concept in this space. It is a single Rust binary that executes deterministic workflows compiled to the [WASM Component Model](https://component-model.bytecodealliance.org/). Workflows are compiled to `wasm32-unknown-unknown` — a target intentionally stripped of I/O capabilities — which makes non-determinism a compile-time impossibility rather than a discipline problem.
+
+Every call, sleep, and result is persisted to an execution log in SQLite (or Postgres, since v0.32). If the process crashes, it replays the log on restart. Litestream can stream that SQLite file to S3-compatible storage for disaster recovery.
+
+This architecture has real strengths:
+- **Zero separate services** in the default configuration
+- **Local debugging** — inspect the entire execution history in a single SQLite file
+- **Vendor-neutrality** — activities and workflows are plain WASM components, not tied to Obelisk's runtime
+
+And real constraints:
+- **AGPL-3.0 license** — commercial use without a paid license is legally murky
+- **WASM ecosystem maturity** — many Rust libraries do not compile cleanly to the restricted WASM targets yet
+- **Single-writer SQLite** — even in WAL mode, SQLite serializes writes; at high concurrency this becomes a bottleneck
+
+The Hacker News thread from April 2025 (103 points, 27 comments) surfaced a legitimate concern: WASM determinism is not as absolute as it looks. NaN propagation rules differ between implementations, and join-set race conditions can introduce ordering non-determinism. These are solvable but require care.
+
+## Litestream: production-ready, not magic
+
+[Litestream](https://litestream.io/) monitors SQLite's WAL and streams new frames to S3 in the background. This gets you continuous backup without stopping the database, and point-in-time restore within seconds of the last WAL frame.
+
+What it does not give you is **synchronous durability**. Replication is asynchronous — if the host fails before the latest frames reach S3, you lose those writes. For workflow state, that usually means re-running the last step, which is acceptable if your activities are idempotent. If they are not, you need to think carefully.
+
+Litestream is also single-node by design. You cannot run two writers against the same SQLite file through Litestream. This is fine for most self-hosted scenarios; it becomes a hard constraint when you need horizontal write scaling or zero-downtime failover.
+
+## DBOS: when you already run Postgres
+
+[DBOS](https://www.dbos.dev/) makes the same "database is enough" argument, but with Postgres instead of SQLite. The pitch is compelling: add seven lines of code, get durable execution, zero new infrastructure. Workflows store their execution log in your existing Postgres schema.
+
+The operational case is strong if your application already owns a Postgres instance. You get synchronous replication, connection pooling, streaming standby — all the HA primitives you have already solved. The cost is that Postgres *is* additional infrastructure for teams that do not already run it.
+
+## Temporal: for when you outgrow the simple cases
+
+[Temporal](https://temporal.io/) is the opposite end of the spectrum. It runs its own orchestration cluster with its own storage layer. You rearchitect your application into workers and move your workflow logic there. Setup is heavier; the operational surface is larger; the ceiling is much higher.
+
+Temporal makes sense when you are running multiple workflow-heavy services, need mature visibility and retry tooling, or are crossing tens of thousands of state transitions per second. The re-architecture cost is real — some teams report over 100 lines of changes to migrate a single workflow — but for high-volume production systems it pays for itself.
+
+## Cloudflare Dynamic Workflows: a different model entirely
+
+In May 2026 Cloudflare launched [Dynamic Workflows](https://blog.cloudflare.com/dynamic-workflows/), a ~300-line TypeScript library that routes durable workflow execution to tenant-specific code at runtime. The underlying execution model relies on Cloudflare's own distributed infrastructure, not SQLite.
+
+This is worth knowing about because it solves a different problem: multi-tenant platforms where each customer needs their own workflow logic deployed without touching the host application. If you are self-hosting, this is not your path. If you are building a SaaS platform on Workers, it is genuinely interesting.
+
+[INTERN LÄNK: Cloudflare Dynamic Workflows och agent-plattformar]
+
+## Comparison: SQLite vs Postgres vs Temporal
+
+| | SQLite (Obelisk + Litestream) | Postgres (DBOS) | Temporal |
+|---|---|---|---|
+| **Infrastructure** | Single binary + S3 for backup | Postgres required | Temporal cluster + Postgres/Cassandra |
+| **Write throughput** | ~5,000 tx/s (single writer) | ~10,000–50,000 tx/s | 100,000+ tx/s |
+| **HA / failover** | Async replication; minutes to restore | Synchronous streaming standby | Built-in, multi-region |
+| **Multi-node writes** | No | Yes (Postgres handles it) | Yes |
+| **Operational complexity** | Very low | Low (if Postgres already exists) | High |
+| **Vendor lock-in** | Low (WASM components) | Medium (DBOS SDK) | Medium (Temporal SDK) |
+| **License** | AGPL-3.0 (Obelisk) | MIT / Apache | MIT |
+| **Best for** | Solo or small-team self-hosted, AI agents, experiments | Teams already on Postgres, moderate scale | Multi-service, high-volume, enterprise |
+
+## When SQLite is actually enough
+
+The "SQLite is all you need" framing is accurate for a narrower set of cases than the headline suggests — but that set is not small:
+
+- **Single-node deployments** where the machine failing means the whole thing is down anyway
+- **AI agent orchestration** where each agent is self-contained and idempotent retries are acceptable
+- **Development and staging environments** where zero-infrastructure setup matters more than HA
+- **Bursty experimental workloads** where you want full workflow history in a file you can open in any SQLite client
+
+The moment you need two nodes writing simultaneously, sub-second failover, or multi-tenant storage isolation, SQLite stops being the right answer and you should look at Postgres or a dedicated orchestrator.
+
+[INTERN LÄNK: produktionssättning av Postgres på Hetzner för liten stack]
+
+## Practical starting point
+
+If you want to experiment with Obelisk locally:
+
+```bash
+cargo install obelisk
+obelisk serve --config obelisk.toml
+```
+
+The execution log is a standard SQLite file. Open it with any SQLite client and you can read every step of every workflow that has ever run. That observability, for free, is the strongest argument for starting here.
+
+When you hit the ceiling, the migration path to Postgres (via Obelisk's Postgres backend) or DBOS is straightforward — the workflow logic stays the same, only the persistence layer changes.
+
+---
+
+## Sources
+
+- [Obelisk — SQLite is All You Need for Durable Workflows](https://obeli.sk/blog/sqlite-is-all-you-need-for-durable-workflows/)
+- [Obelisk GitHub repository](https://github.com/obeli-sk/obelisk)
+- [Show HN: Obelisk — a WASM-based deterministic workflow engine](https://news.ycombinator.com/item?id=43636568)
+- [DBOS — Postgres is all you need for durable execution](https://www.dbos.dev/blog/postgres-is-all-you-need-for-durable-execution)
+- [Cloudflare — Introducing Dynamic Workflows](https://blog.cloudflare.com/dynamic-workflows/)
+- [Cloudflare Workflows GA](https://blog.cloudflare.com/workflows-ga-production-ready-durable-execution/)
+- [Litestream — Streaming SQLite Replication](https://litestream.io/)
+- [Fly.io — I'm All-In on Server-Side SQLite](https://fly.io/blog/all-in-on-sqlite-litestream/)
+- [DBOS vs Temporal: Choosing Durable Execution in 2026](https://www.tiarebalbi.com/en/blog/dbos-vs-temporal-postgres-durable-execution)
+- [x-cmd blog: Obelisk 0.32 — Introducing PostgreSQL](https://www.x-cmd.com/blog/260103/)

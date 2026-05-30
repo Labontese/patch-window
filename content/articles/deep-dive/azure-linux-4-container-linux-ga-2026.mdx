@@ -1,0 +1,114 @@
+---
+title: "Azure Linux 4.0: Microsoft Enters the Server OS Race"
+metaDescription: "Azure Linux 4.0 is Microsoft's first Fedora-based general-purpose server distro. Here's what it means for teams running Linux in production on Azure."
+format: deep-dive
+slug: azure-linux-4-container-linux-ga-2026
+pathway: sysadmin-craft
+tags:
+  - linux
+  - azure
+  - microsoft
+  - kubernetes
+  - devops
+  - security
+  - containers
+publishedAt: 2026-05-30T10:00:00+02:00
+draft: false
+lang: en
+---
+
+Microsoft has never been in the business of shipping a general-purpose Linux distribution — until now. On May 18, 2026, at Open Source Summit North America in Minneapolis, the company announced **Azure Linux 4.0** for public preview on Azure Virtual Machines, alongside the general availability of **Azure Container Linux**, its immutable container-optimized OS. Together, they signal that Microsoft is no longer content to be a neutral platform for Linux workloads. It wants to own the OS layer too.
+
+## What is Azure Linux 4.0?
+
+**Azure Linux 4.0** is Microsoft's first Fedora-based, RPM-packaged, general-purpose server Linux distribution, designed to run on Azure Virtual Machines. It is not a container-only OS — it is a full server distro, the kind you'd use to run application servers, databases, or bare VM workloads.
+
+The 4.0 release rebasines the OS on Fedora as its upstream, with packages drawn directly from Fedora's repositories and deviations kept minimal and documented. Under the hood, the distribution is defined by TOML configuration files and a layered overlay system — a design choice that has significant implications for supply chain security and patching (more on that below).
+
+Key characteristics:
+
+- **Package manager:** RPM (dnf-compatible)
+- **Upstream:** Fedora Linux
+- **SELinux:** enforcing mode by default
+- **Kernel:** aligned with Azure's hardware roadmap, including Azure Cobalt (ARM64) and AMD EPYC instances
+- **Support:** covered under standard Azure support plans — Microsoft handles break-fix, security patches, and architectural guidance
+
+## What is Azure Container Linux?
+
+**Azure Container Linux** is a separate, purpose-built product derived from the [Flatcar Container Linux](https://www.flatcar.org/) project. It is immutable by design: no package manager, read-only root filesystem at runtime, and updates applied by atomically swapping the entire OS image.
+
+It is now **generally available**, and a broader rollout to Azure Kubernetes Service (AKS) and Azure Arc is planned for [Microsoft Build on June 2, 2026](https://build.microsoft.com/). Crucially, AKS support for the previous Flatcar Container Linux preview is being retired on June 8, 2026 — Azure Container Linux is the replacement.
+
+Key characteristics:
+
+- **Immutable root filesystem:** no in-place package modifications at runtime
+- **Update model:** full atomic image swap (CoreOS/Flatcar lineage)
+- **Support lifecycle:** two years, designed to encourage regular image refreshes
+- **Target workload:** AKS node pools, Azure Arc, regulated and security-sensitive environments
+
+## Two distros, two philosophies
+
+The split is deliberate. Azure Linux 4.0 targets teams that need a familiar, mutable, RPM-based environment — traditional sysadmin workflows, in-place package installs, ssh-and-fix debugging. Azure Container Linux targets platform engineers building Kubernetes infrastructure where immutability is a first-class constraint.
+
+| | Azure Linux 4.0 | Azure Container Linux |
+|---|---|---|
+| **Base** | Fedora (RPM) | Flatcar (immutable) |
+| **Package manager** | Yes (dnf) | No |
+| **Root filesystem** | Mutable | Read-only at runtime |
+| **Update model** | Traditional RPM updates | Atomic image swap |
+| **Primary target** | Azure VMs, general server workloads | AKS node pools, container hosts |
+| **Status** | Public preview | Generally available |
+| **Support lifecycle** | Standard Azure support | 2-year image lifecycle |
+
+[INTERN LÄNK: immutable Linux for server infrastructure]
+
+## The supply chain architecture in Azure Linux 4.0
+
+One of the more interesting technical decisions in Azure Linux 4.0 is the overlay-first design. Rather than shipping a monolithic root filesystem, the system composes a running OS from multiple signed, independently verifiable image layers:
+
+1. A **base layer** sourced from Fedora RPMs
+2. **Extension layers** carrying Azure-specific daemons, monitoring agents, and security modules — each independently signed
+3. A **policy engine** that merges layers as read-only, verifying each digital signature before mounting
+
+The practical payoff: when a CVE lands in a user-space component, Microsoft can rebuild and re-sign that layer alone, allowing nodes to hot-swap it without a full image download or reboot. Every file in the stack traces back to a signed, auditable component. Any unauthorized modification breaks the mount.
+
+This is paired with SBOMs (Software Bill of Materials) for every customer-facing image, SELinux in enforcing mode, signed repositories, and automated vulnerability scanning integrated with Azure Security Center.
+
+[INTERN LÄNK: supply chain security Linux packages]
+
+## Why this matters for teams running Linux in production
+
+For most Azure shops already running Ubuntu or RHEL on VMs, the immediate question is: *why switch?*
+
+Microsoft's own benchmarks, shared at Open Source Summit, show Azure Linux 4.0 outperforming generic Ubuntu and RHEL images by 5–15% on identical VM sizes for common workloads (web serving, database queries, ML inference). The OS is tuned against Azure's actual hardware — it is not a generic distro ported to a cloud.
+
+The competitive angle is real, but subtle. Fedora is Red Hat's upstream. Red Hat is both an Azure partner and a direct competitor in the enterprise Linux space via RHEL. By building on Fedora, Microsoft picks up a well-maintained RPM ecosystem while contributing back upstream — a Microsoft Linux engineer is co-authoring a proposal for x86-64-v3 packages in Fedora 45, motivated directly by Azure Linux's performance needs. This is not Microsoft *using* open source; it is Microsoft *participating* in it in ways that affect the broader ecosystem.
+
+For AKS operators specifically, the calculus is more immediate: Flatcar on AKS is being retired June 8. If you're on that preview, Azure Container Linux is your migration path. The good news is that the immutability model is identical in spirit — atomic image swaps, no package manager, fast boot — but now it comes with Microsoft-managed images, a two-year support commitment, and integration with Azure Security Center out of the box.
+
+[INTERN LÄNK: AKS node image management best practices]
+
+## What's next
+
+Azure Linux 4.0 is in **public preview** today. Microsoft has not announced a GA date, but the trajectory is clear: Build on June 2 will deliver full AKS integration for Azure Container Linux, and Azure Linux 4.0 will follow into general availability once the preview feedback cycle closes.
+
+If you're evaluating it now, the GitHub repository at [github.com/microsoft/azurelinux](https://github.com/microsoft/azurelinux) is where development happens openly. The overlay configuration files and TOML specs are readable, the deviation log from Fedora is documented, and issues are public. For a Microsoft OS product, the level of transparency is notable.
+
+For operators running Linux at scale on Azure, this is worth watching. A purpose-built OS tuned to the underlying hardware, with Microsoft-grade support and a coherent security architecture, is a meaningful alternative to bringing your own distro. The performance claims need independent verification, and production hardening always reveals edges that a preview won't surface — but the architecture is sound, the upstream lineage is credible, and the timing is deliberate.
+
+Microsoft is now in the server OS business. That changes the calculus for every enterprise Linux decision made on Azure.
+
+---
+
+## Sources
+
+- [Microsoft Open Source Blog — From open source to agentic systems: Microsoft at Open Source Summit North America 2026](https://opensource.microsoft.com/blog/2026/05/18/from-open-source-to-agentic-systems-microsoft-at-open-source-summit-north-america-2026/)
+- [InfoQ — Microsoft Announces Azure Linux 4.0, Its First General-Purpose Server Linux Distribution](https://www.infoq.com/news/2026/05/azure-linux-4-server/)
+- [The Register — Microsoft rebases Azure Linux on Fedora as Fedora drops Deepin](https://www.theregister.com/oses/2026/05/20/microsoft-rebases-azure-linux-on-fedora-as-fedora-drops-deepin/5243629)
+- [FullStackEvolved — Microsoft Launches Azure Linux 4.0 Preview and Azure Container Linux GA at Open Source Summit](https://www.fullstackevolved.com/blog/azure-linux-4-container-linux-ga-2026-05-20/)
+- [Microsoft TechCommunity — Introducing Azure Linux with OS Guard: Secure, Immutable, and Open-Source Container Host](https://techcommunity.microsoft.com/blog/linuxandopensourceblog/azure-linux-with-os-guard-immutable-container-host-with-code-integrity-and-open-/4437473)
+- [GitHub — microsoft/azurelinux](https://github.com/microsoft/azurelinux)
+- [GitHub Azure/AKS — Flatcar Container Linux retirement June 8 2026](https://github.com/Azure/AKS/issues/5648)
+- [Cloud Native Now — Azure Linux 4.0 Signals Microsoft's Commitment to Open Source AI Infrastructure](https://cloudnativenow.com/features/azure-linux-4-0-signals-microsofts-commitment-to-open-source-ai-infrastructure/)
+- [Redmond Magazine — Microsoft Pushes Further Into Linux with Azure Linux 4.0 Rollout](https://redmondmag.com/articles/2026/05/19/microsoft-pushes-further-into-linux-with-azure-linux-4.aspx)
+- [it's FOSS — Wow! Microsoft Now Has a Fedora-based Linux Distro](https://itsfoss.com/news/azure-linux-4/)
