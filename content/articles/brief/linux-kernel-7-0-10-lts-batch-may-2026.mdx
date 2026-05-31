@@ -1,0 +1,102 @@
+---
+title: "Linux Kernel 7.0.10 + 6.12.91: What Got Fixed"
+format: brief
+slug: linux-kernel-7-0-10-lts-batch-may-2026
+pathway: sysadmin-craft
+tags:
+  - linux
+  - kernel
+  - lts
+  - cve
+  - ipsec
+  - ptrace
+  - security
+publishedAt: 2026-05-31T12:00:00+02:00
+excerpt: "The 23 May batch release patched a UDP/IPsec corruption bug, a ptrace vulnerability, and the Copy Fail LPE across all active LTS branches."
+draft: true
+lang: en
+---
+
+On 23 May, Greg Kroah-Hartman pushed stable releases across all active Linux kernel branches simultaneously. The batch included 7.0.10, 6.12.91, and updates to the 6.6 and 6.1 LTS series. When every branch ships at once, it usually means something significant warranted coordinated backporting — and this time there were three things.
+
+## The three fixes that drove the batch
+
+### UDP/IPsec data corruption
+
+A bug in the xfrm IPsec subsystem caused async callback mismatches that could corrupt encrypted traffic under load. The corruption was non-deterministic, which made it particularly nasty to diagnose — the symptoms looked like intermittent VPN instability or packet loss rather than a kernel bug.
+
+Environments most likely to hit this:
+
+- Site-to-site IPsec tunnels using IKEv2 with UDP encapsulation (the default in strongSwan and Libreswan for NAT traversal)
+- Cloud VMs where the hypervisor handles packet offloading differently than bare metal
+
+This bug affects the xfrm/IPsec path specifically. WireGuard uses a different code path and is not affected.
+
+If you have been chasing intermittent IPsec instability and ruling out configuration issues, this patch is worth testing against.
+
+### ptrace vulnerability
+
+A logic error in the ptrace subsystem allowed a process to bypass the `CAP_SYS_PTRACE` capability check under specific conditions, potentially reading memory it should not have access to. The severity depends heavily on the environment — on a single-user workstation it is low impact; in a shared build environment or multi-user server, it narrows a security boundary.
+
+Container runtimes that rely on user namespaces for isolation (rootless Podman, rootless Docker, some Kubernetes configurations) should treat this as a priority patch.
+
+### CVE-2026-31431 (Copy Fail)
+
+The AF_ALG stack corruption described in the [Copy Fail write-up](/cve-2026-31431-copy-fail-linux-lpe) is fixed in this batch. Kernel 6.12.91 and 7.0.10 both include the patch. If your distro has not yet shipped a kernel update that includes this fix, the upstream stable release is available now.
+
+## Which branch should you be on?
+
+A question worth asking whenever there is a batch release: are you on the right LTS branch for your environment?
+
+The active LTS branches as of May 2026 are:
+
+| Branch | Status | EOL |
+|--------|--------|-----|
+| 7.0.x | Stable (new) | TBD |
+| 6.12.x | LTS | Dec 2028 |
+| 6.6.x | LTS | Dec 2027 |
+| 6.1.x | LTS | Dec 2027 |
+
+For most general-purpose servers, **6.12.x** is the sweet spot right now: it has broad hardware support, a long support window, and active backporting. The 6.1 branch is appropriate for systems that need maximum stability and can accept slower feature uptake.
+
+The 7.0.x series is too new to recommend for production workloads unless you have a specific reason — though Proxmox VE 9.2 ships it, which means it will get tested at scale quickly.
+
+## How distros are handling this
+
+**Ubuntu** ships these fixes via the `linux-image` security pocket. On Ubuntu 24.04 LTS the relevant update is in the `linux-6.8` package (the GA kernel). Ubuntu does not track upstream stable exactly, so the patch arrived via backport rather than a version bump to 6.12.91.
+
+**Debian** trixie/sid tracks a newer kernel and picked up the fix directly. Debian stable (bookworm) receives security fixes via the security pocket on the 6.1 LTS branch.
+
+**RHEL and derivatives** (Rocky, Alma, CentOS Stream) backport kernel security fixes into their own versioned kernel packages. Check `dnf updateinfo list security` to see whether the relevant CVEs are listed as patched.
+
+**Arch and Gentoo** track mainline and current stable — if you run either, you are probably already on a patched kernel.
+
+## Checking your kernel
+
+```bash
+# Current running kernel
+uname -r
+
+# On Debian/Ubuntu: check if a security update is pending
+apt-get -s upgrade | grep linux-image
+
+# On RHEL/Rocky/Alma
+dnf check-update kernel
+
+# After updating, reboot to load the new kernel
+reboot
+```
+
+After reboot, confirm you are running the patched version:
+
+```bash
+uname -r
+```
+
+If you use `kexec` for zero-downtime kernel transitions, verify that your kexec tooling correctly loads the new kernel's initramfs alongside the new image.
+
+## Live patching
+
+For systems where a reboot is operationally difficult, both Canonical Livepatch and RHEL's kpatch may have patches available for the Copy Fail fix. The ptrace and IPsec fixes may or may not be covered depending on vendor prioritization — check with your live patching provider before relying on it as a substitute for a full kernel update.
+
+Live patching is a stopgap, not a replacement for updating and rebooting. It addresses the security exposure but does not fix the underlying running kernel image. Schedule the full update.

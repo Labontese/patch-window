@@ -1,0 +1,91 @@
+---
+title: "Proxmox VE 9.2: Load Balancing and WireGuard"
+format: hot-take
+slug: proxmox-ve-9-2-dynamic-load-balancer
+pathway: sysadmin-craft
+tags:
+  - proxmox
+  - virtualization
+  - wireguard
+  - sdn
+  - bgp
+  - release
+publishedAt: 2026-05-31T11:00:00+02:00
+excerpt: "Proxmox VE 9.2 ships a cluster-wide load balancer, native WireGuard SDN, and BGP/EVPN route maps on Debian 13.5 and kernel 7.0."
+draft: true
+lang: en
+---
+
+Proxmox VE 9.2 dropped on 21 May and it is one of the more operationally interesting point releases in a while. The headline feature — a cluster-wide dynamic load balancer — addresses something that VMware shops often cite as a gap when they look at Proxmox as a migration target. The WireGuard SDN integration is quieter but probably more immediately useful for anyone running multi-site or hybrid infrastructure.
+
+## Dynamic Load Balancer via CRS
+
+The new load balancer uses the Cluster Resource Scheduler (CRS) framework introduced in earlier releases but now extended with dynamic rebalancing. Previously, CRS handled initial VM placement. In 9.2, it can continuously redistribute running VMs across nodes based on real-time CPU and memory load.
+
+This is opt-in and configured per resource pool. The scheduler respects HA group priorities — it will not migrate a VM in a way that violates your defined HA rules.
+
+For clusters where node utilization drifts over time — common when VMs are created and deleted without manual rebalancing — this removes a maintenance step that has historically required either manual `qm migrate` commands or third-party tooling.
+
+## Native WireGuard in SDN
+
+The SDN (Software Defined Networking) layer in Proxmox VE now has native WireGuard support. Previously, WireGuard on Proxmox meant configuring it manually at the OS level outside of the SDN framework, then hoping it did not interfere with bridge and VXLAN configurations managed by Proxmox.
+
+With 9.2, WireGuard is integrated natively into the SDN stack rather than requiring manual OS-level configuration outside Proxmox's management layer. This is particularly useful for:
+
+- Multi-site clusters where nodes are spread across data centers or cloud providers
+- Hybrid setups where some workloads run on-premises and some run in rented dedicated servers
+- Connecting Proxmox management networks without opening raw IP traffic between sites
+
+## BGP/EVPN via route maps
+
+The BGP/EVPN support that shipped in earlier 9.x versions gains route map support in 9.2. Route maps let you control which prefixes are advertised and accepted per peer, enabling policy-based routing at the SDN layer.
+
+This is squarely aimed at environments where Proxmox clusters connect to physical network infrastructure that uses BGP for overlay routing — data center fabrics, colocation environments with customer BGP sessions, or setups where Proxmox SDN needs to advertise VM prefixes to upstream routers.
+
+If you are not running BGP today, this does not affect you. If you are, the route map support closes a gap that previously required workarounds via FRR configuration outside of Proxmox's management layer.
+
+## Stack versions in 9.2
+
+The release ships on a fully updated base:
+
+| Component | Version |
+|-----------|---------|
+| Base OS | Debian 13.5 (Trixie) |
+| Kernel | 7.0 (with Copy Fail LPE fix — see [our coverage](/cve-2026-31431-copy-fail-linux-lpe)) |
+| QEMU | 11.0 |
+| ZFS | 2.4 |
+| Ceph | 20.2 (Tentacle) — Squid 19.2 remains available |
+
+The kernel 7.0 inclusion means Proxmox VE 9.2 ships with the fix for CVE-2026-31431 (the AF_ALG stack corruption) built in. If you upgrade to 9.2, you get that fix without a separate kernel update step.
+
+Ceph 20.2 (Tentacle) ships alongside the still-supported Squid 19.2. Tentacle is not applied automatically — Proxmox Ceph upgrades require a separate upgrade procedure via the web UI or CLI. Review the Ceph Tentacle release notes for deprecated features before upgrading your storage cluster.
+
+## Upgrading from 9.1
+
+Proxmox publishes an upgrade checklist in their wiki for each minor release. The general path from 9.1 to 9.2 is:
+
+```bash
+apt update
+apt dist-upgrade
+```
+
+But read the release notes first, particularly around:
+
+- Any SDN configuration changes required for the WireGuard integration
+- CRS scheduler configuration if you want to enable dynamic load balancing
+- Ceph version compatibility if you run a converged cluster
+
+Post-upgrade, verify cluster quorum and storage health before resuming normal operations:
+
+```bash
+pvecm status
+pvesm status
+```
+
+## The VMware migration angle
+
+Every Proxmox release in the 9.x cycle has drawn attention from teams evaluating it as a VMware replacement. The dynamic load balancer specifically addresses one of the more common objections: "Proxmox doesn't do DRS." It does now, at least at the cluster level with CRS.
+
+The feature parity conversation has shifted. Two years ago, the gaps were significant. Today, for most workloads that don't require vSphere-specific features like vMotion Storage, NSX, or vSAN Stretch Clustering, Proxmox VE 9.2 is a credible alternative. The WireGuard SDN integration and BGP route maps make it more viable for the multi-site use cases that VMware customers often consider more complex to replicate.
+
+Whether the migration math works depends entirely on your specific environment and licensing situation. But 9.2 removes some of the technical objections that made the conversation harder.

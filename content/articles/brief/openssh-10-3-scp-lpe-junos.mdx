@@ -1,0 +1,99 @@
+---
+title: "OpenSSH 10.3: scp LPE and Junos Impact"
+format: brief
+slug: openssh-10-3-scp-lpe-junos
+pathway: sysadmin-craft
+tags:
+  - openssh
+  - cve
+  - scp
+  - juniper
+  - junos
+  - security
+  - lpe
+publishedAt: 2026-05-31T10:00:00+02:00
+excerpt: "OpenSSH 10.3 patches five CVEs including a privilege escalation via legacy scp. Juniper confirmed Junos OS and Junos Evolved are affected."
+draft: true
+lang: en
+---
+
+OpenSSH 10.3 shipped with five CVE fixes. Most of them are narrow edge cases. Two of them are not. And the week after the release, Juniper confirmed that Junos OS and Junos Evolved — the operating systems running on their routers and switches — are affected as well.
+
+If you manage network infrastructure alongside Linux servers, you have two separate patching queues this month.
+
+## CVE-2026-35385: scp LPE (CVSS 7.5)
+
+The more serious of the two headline bugs lives in the legacy `scp` binary. When running as root without the `-p` (preserve modes) flag, legacy scp fails to clear setuid and setgid bits on downloaded files. If a malicious or compromised source delivers a setuid binary and root transfers it via legacy scp, the bits survive — and any user who later executes that file gets elevated privileges.
+
+CVSS 7.5 reflects the network vector (exploitable over SSH) and the high impact on integrity. The attack requires the legacy `scp` protocol (`-O` flag) to be in use, not the newer SFTP-based transfer mode.
+
+**The practical question**: do you still use legacy `scp`? A lot of automation does. Ansible playbooks, backup scripts, and CI pipelines written before 2020 frequently call `scp` directly rather than `sftp` or `rsync --rsh=ssh`. If you have not audited your automation for legacy scp usage, now is the time.
+
+To check whether you are invoking legacy scp or the newer sftp-based transfer:
+
+```bash
+# Legacy scp uses the scp protocol
+scp -O source destination   # -O forces legacy protocol
+
+# The default in recent OpenSSH versions is sftp-based
+# Check your OpenSSH version
+ssh -V
+```
+
+Since OpenSSH 9.0, the default has been SFTP-based transfers. If you are running 9.0 or newer and have not explicitly set `scp -O` anywhere, you are probably not exposed through this path — but verify your automation.
+
+## CVE-2026-35386: shell metacharacter injection via %u tokens
+
+The second notable fix addresses a shell metacharacter injection in OpenSSH's `%u` token expansion. The `%u` token substitutes the username, and the vulnerable path is specifically a `Match exec` block in `ssh_config` on the client side.
+
+If a username contains shell metacharacters — which is possible when accounts are provisioned programmatically or synced from an external directory — those characters can be injected into commands executed via the Match exec directive.
+
+The practical exposure here depends on your environment. If you run standard Unix usernames (alphanumeric plus underscore), the risk is low. If you sync accounts from Active Directory, LDAP, or an IdP where usernames can contain dots, spaces, or other characters, review your sshd configuration.
+
+## Juniper's exposure
+
+The week of 27–31 May, Juniper Networks confirmed that both Junos OS and Junos Evolved include an OpenSSH build affected by these CVEs. Juniper devices use SSH extensively for management access, and many operations teams use `scp` to transfer configuration files, software images, and logs to and from network gear.
+
+Juniper's advisory is available via their support portal (requires login). Patched Junos builds have not been confirmed publicly at the time of writing — check Juniper's portal directly for current patch status. Until a fix is available:
+
+1. Disable legacy scp on Junos devices where SFTP is a viable replacement
+2. Restrict SSH access to management interfaces via ACLs (which you should already be doing)
+3. Monitor Juniper's support portal for patched software releases
+
+The Junos exposure is a good reminder that your SSH attack surface extends beyond Linux servers. Every network appliance, storage array, and hypervisor host that ships OpenSSH is potentially in scope for these CVEs.
+
+## The other three CVEs
+
+OpenSSH 10.3 also patches:
+
+- A bounds check issue in the `ssh-keyscan` utility (low severity, requires interaction with a malicious server)
+- A memory leak in the `ssh-agent` forwarding path under high connection volume (reliability impact, not security-critical)
+- A double-free in a rarely-used PKCS#11 code path (theoretical exploitability, no known public exploit)
+
+None of these three warrant emergency patching on their own. Combined with the scp LPE, they are more reason to prioritize the upgrade.
+
+## How to update
+
+Most Linux distributions have shipped OpenSSH 10.3 packages by now:
+
+```bash
+# Debian/Ubuntu
+apt update && apt upgrade openssh-client openssh-server
+
+# RHEL/Rocky/Alma
+dnf update openssh
+
+# After upgrading the server, restart sshd
+systemctl restart sshd
+```
+
+Verify the installed version:
+
+```bash
+ssh -V
+# Should report: OpenSSH_10.3, ...
+```
+
+If you manage OpenSSH on embedded systems, containers, or appliances that build from source, check whether your build process pins to a specific version and update accordingly.
+
+The scp LPE is the one to act on first. Check your automation for legacy scp usage and upgrade the server. The rest follows naturally.
