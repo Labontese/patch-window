@@ -1,13 +1,11 @@
 import type { MetadataRoute } from 'next'
 import { getAllArticles } from '@/lib/articles'
-import { getAllTags } from '@/lib/articles'
 import { PATHWAYS } from '@/lib/types'
 
 const BASE = 'https://patchwindow.serverdigital.net'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const articles = getAllArticles()
-  const tags = getAllTags()
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: BASE, lastModified: new Date(), changeFrequency: 'daily', priority: 1 },
@@ -36,12 +34,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }))
 
-  const tagRoutes: MetadataRoute.Sitemap = tags.map((tag) => ({
-    url: `${BASE}/tag/${tag}`,
-    lastModified: new Date(),
-    changeFrequency: 'weekly',
-    priority: 0.5,
-  }))
-
-  return [...staticRoutes, ...articleRoutes, ...pathwayRoutes, ...tagRoutes]
+  // Tag pages are intentionally excluded from the sitemap. They are low-value,
+  // near-duplicate listing pages that previously made up ~77% of submitted URLs
+  // (305 of 398), diluting crawl budget and producing large numbers of
+  // "Discovered - currently not indexed" entries in Search Console. Tag pages
+  // also carry robots noindex (see app/tag/[slug]/page.tsx).
+  return [...staticRoutes, ...articleRoutes, ...pathwayRoutes]
 }
