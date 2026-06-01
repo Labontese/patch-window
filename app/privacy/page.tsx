@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description:
     'How Patch Window handles personal data — what we store, why, and how to remove it.',
   alternates: { canonical: 'https://patchwindow.serverdigital.net/privacy' },
-  robots: { index: true, follow: true },
+  robots: { index: false, follow: true },
 }
 
 export default function PrivacyPage() {

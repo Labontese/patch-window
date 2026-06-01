@@ -11,6 +11,7 @@ export const metadata: Metadata = {
     description: 'How Patch Window handles corrections and updates to published articles.',
     type: 'website',
   },
+  robots: { index: false, follow: true },
 }
 
 export default function CorrectionsPage() {

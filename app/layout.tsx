@@ -105,6 +105,14 @@ const websiteJsonLd = {
   '@type': 'WebSite',
   name: 'Patch Window',
   url: SITE_URL,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
 }
 
 export default function RootLayout({
