@@ -1,0 +1,178 @@
+---
+title: "Wazuh 4.x to 5.0 migration checklist"
+metaDescription: "Upgrading Wazuh manager to 5.0 requires a clean install. Step-by-step checklist covering agent minimum version 4.14.0, removed daemons, Filebeat replacement, and post-migration verification."
+format: deep-dive
+slug: wazuh-4x-to-5-migration-checklist
+pathway: sysadmin-craft
+tags:
+  - wazuh
+  - siem
+  - upgrade
+  - migration
+  - sysadmin
+  - security
+publishedAt: 2026-06-03T10:00:00+02:00
+excerpt: "Wazuh 5.0 is not a standard upgrade. The manager cannot be upgraded in-place from any 4.x version -- you are doing a clean install. This checklist covers the full migration: agent inventory, manager rebuild, config migration, and post-migration verification."
+draft: false
+lang: en
+---
+
+> **Pre-release notice:** Wazuh 5.0 has not reached general availability as of this writing. Expected GA is approximately June 19, 2026. This checklist is based on verified breaking changes from the official changelog, GitHub issues, and discussions listed at the bottom. Some sections are marked **[To be updated at GA]** where documentation is incomplete. I will update this article when 5.0 ships.
+
+Upgrading Wazuh manager to 5.0 is not a standard package update. The upgrade from any 4.x version is blocked at the package level -- the installer will refuse with an explicit error. You are doing a clean install. If you are running a Wazuh 4.x manager today, plan to rebuild it.
+
+This checklist walks through the complete Wazuh 4 to 5 migration process: taking stock of your current environment, standing up the new manager, rolling out updated agents, and verifying everything is working. Work through it in order.
+
+---
+
+## 1. Pre-migration assessment
+
+Before you touch anything, know what you are working with.
+
+### Manager inventory
+
+- [ ] Document your current Wazuh manager version (`wazuh-control info`)
+- [ ] Note whether you are running a cluster (`cluster.disabled` setting in `ossec.conf` -- this option is removed in 5.0; all installs now run as cluster nodes)
+- [ ] Check if Filebeat is installed and in use for log forwarding to the indexer -- it is gone in 5.0, replaced by native `indexer-connector`
+- [ ] List any custom rules and decoders in `/var/ossec/etc/rules/` and `/var/ossec/etc/decoders/`
+- [ ] Export your current `ossec.conf` -- you will need to manually migrate settings to the new format
+- [ ] Check if you use the OpenSCAP server-side module -- it is removed in 5.0; use SCA instead
+- [ ] Check if you rely on `rootcheck` -- the server-side database, sync path, and API surface have been removed; findings now go through the standard alert pipeline
+- [ ] Note any use of `wazuh-agentlessd`, `wazuh-maild`, or `wazuh-dbd` -- all three daemons are removed in 5.0
+- [ ] Check if anything in your tooling calls `manage_agents` or `agent-auth` -- both CLI tools are removed
+- [ ] Note the manager installation path change: 5.0 uses `/var/wazuh-manager` instead of `/var/ossec`
+
+### Agent inventory
+
+- [ ] Pull a list of all registered agents and their versions
+- [ ] Identify every agent running below 4.14.0 -- these will be blocked from connecting to a 5.0 manager
+- [ ] Plan an agent pre-upgrade pass for anything below 4.14.0 before you migrate the manager
+- [ ] Note any agents using `ossec-authd` for enrollment -- the daemon is removed; enrollment method changes in 5.0 [To be updated at GA]
+- [ ] Note any Windows agents using the NSIS-based installer -- Windows now ships exclusively as MSI
+
+### Data and backup
+
+- [ ] Back up `/var/ossec/etc/` (config, rules, decoders, lists) -- note the path changes to `/var/wazuh-manager` in 5.0
+- [ ] Back up `/var/ossec/logs/` if you need local log retention
+- [ ] Export any custom SCA policies
+- [ ] Document your Wazuh Indexer index patterns and any custom dashboards you want to preserve
+- [ ] Verify your Wazuh Indexer snapshot schedule is running and a recent snapshot exists
+
+---
+
+## 2. Pre-upgrade: agents below 4.14.0
+
+Wazuh 5.0 requires a minimum agent version of 4.14.0. Agents older than that will not connect to the new manager -- this is enforced at the package level with a hard block.
+
+- [ ] Identify the upgrade method for your agents (package manager, WPK, group-based deployment)
+- [ ] Test upgrade on one agent per OS family before bulk rollout
+- [ ] Use Wazuh's agent groups to stage the rollout
+- [ ] Upgrade all agents to at least 4.14.0 while the existing 4.x manager is still running
+- [ ] Confirm all agents report as connected and healthy after the pre-upgrade pass
+- [ ] Do not decommission the old manager until agent upgrades are confirmed
+
+---
+
+## 3. Manager migration -- clean install
+
+There is no in-place upgrade path from 4.x to 5.0. The package installer blocks it explicitly. You are installing a new manager.
+
+### Parallel deployment approach (recommended)
+
+Running the old and new managers in parallel is safer than a hard cutover. New agents point to the new manager; old agents remain on the old manager until they are ready to migrate.
+
+- [ ] Provision the new server (or VM/container) for the 5.0 manager
+- [ ] Install Wazuh 5.0 manager following the official install guide [To be updated at GA: link to 5.0 install docs]
+- [ ] Do not restore your old `ossec.conf` directly -- the config schema has changed
+
+### Cluster configuration
+
+In 5.0, all server installations run as a cluster node. The `cluster.disabled` option has been removed -- there is no longer a non-clustered mode.
+
+- [ ] Configure `cluster` section in `ossec.conf` on the new manager -- this is now mandatory
+- [ ] If you were previously running a single-node non-cluster setup, you are now running a one-node cluster by default
+- [ ] If you were running a multi-node cluster, plan the new cluster topology and configure accordingly [To be updated at GA: updated cluster config syntax for 5.0]
+
+### Filebeat replacement
+
+Filebeat is no longer part of the Wazuh stack. Log forwarding to the Wazuh Indexer is now handled by `indexer-connector`, a native component built into the manager.
+
+- [ ] Do not install Filebeat on the new 5.0 manager
+- [ ] Configure `indexer-connector` in `ossec.conf` [To be updated at GA: connector config reference]
+- [ ] Verify the manager can reach your Wazuh Indexer on the correct port
+- [ ] Remove Filebeat from the old manager host after migration is complete
+
+### Config migration
+
+- [ ] Manually review your backed-up `ossec.conf` against the new 5.0 format -- do not copy-paste wholesale
+- [ ] Remove any references to `wazuh-agentlessd`, `wazuh-maild`, `wazuh-dbd` from your config and any automation
+- [ ] Remove any rootcheck configuration that relied on server-side database or sync -- findings now route through the alert pipeline
+- [ ] Remove any OpenSCAP server-side module configuration -- the module is gone; migrate to SCA
+- [ ] Re-import custom rules and decoders from backup
+- [ ] Re-import custom SCA policies
+
+### Agent enrollment
+
+- [ ] Confirm the enrollment method for new agents -- `ossec-authd` is removed [To be updated at GA: replacement enrollment flow in 5.0]
+- [ ] Update any automation or scripts that called `manage_agents` or `agent-auth` -- both are removed
+- [ ] Test enrollment of one agent against the new manager before migrating the fleet
+
+---
+
+## 4. Agent migration to the new manager
+
+Once the new 5.0 manager is running and verified:
+
+- [ ] Re-enroll agents against the new manager (agents need a new enrollment since manager is a fresh install)
+- [ ] Update agent configuration to point to the new manager address if it changed
+- [ ] Roll out in stages -- do not move the entire fleet at once
+- [ ] Monitor each batch for connection and event delivery before proceeding
+- [ ] Verify agents appear as active in the 5.0 dashboard after each batch
+- [ ] Windows agents: confirm MSI-based agent is deployed (NSIS installer is no longer supported)
+
+---
+
+## 5. Post-migration verification
+
+- [ ] All agents show as connected and active in the Wazuh dashboard
+- [ ] Events are flowing from agents to the manager and into the indexer
+- [ ] Alert rules are firing as expected (test with a known-trigger action)
+- [ ] Custom rules and decoders are loaded and working
+- [ ] SCA scans are running on agents that had policies configured
+- [ ] No Filebeat processes are running on the new manager host
+- [ ] Cluster status shows healthy [To be updated at GA: exact verification command for 5.0]
+- [ ] Confirm log retention in the indexer matches your retention policy
+- [ ] Decommission the old 4.x manager only after the above are confirmed
+
+---
+
+## Removed in 5.0 -- quick reference
+
+| Component | Status |
+|---|---|
+| In-place upgrade from 4.x | Not supported -- clean install required |
+| `cluster.disabled` option | Removed -- all installs run as cluster nodes |
+| Filebeat integration | Removed -- replaced by native `indexer-connector` |
+| `ossec-authd` daemon | Removed |
+| `wazuh-agentlessd` daemon | Removed |
+| `wazuh-maild` daemon | Removed |
+| `wazuh-dbd` daemon | Removed |
+| `manage_agents` CLI | Removed |
+| `agent-auth` CLI | Removed |
+| OpenSCAP server-side module | Removed -- migrate to SCA |
+| Rootcheck server-side database and sync | Removed -- findings via alert pipeline |
+| NSIS-based Windows agent installer | Removed -- MSI only |
+| Manager install path | Changed from `/var/ossec` to `/var/wazuh-manager` |
+| Minimum agent version | 4.14.0 required |
+
+---
+
+## Sources
+
+- [GitHub issue #34269 -- Upgrade version block implementation](https://github.com/wazuh/wazuh/issues/34269)
+- [GitHub discussion #34029 -- Wazuh 5.0 release timeframe](https://github.com/wazuh/wazuh/discussions/34029)
+- [GitHub issue #36586 -- OpenSCAP and CISCAT deprecation](https://github.com/wazuh/wazuh/issues/36586)
+- [Wazuh CHANGELOG.md -- 5.0.0 breaking changes](https://github.com/wazuh/wazuh/blob/main/CHANGELOG.md)
+- [Wazuh upgrade guide (current)](https://documentation.wazuh.com/current/upgrade-guide/index.html)
+
+*Last updated: June 3, 2026. Will be updated when Wazuh 5.0 reaches GA (expected ~June 19, 2026).*
