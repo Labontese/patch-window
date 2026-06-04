@@ -1,0 +1,96 @@
+---
+title: "OpenTofu 1.12.1: SSH hangs, panics, and a cert revocation gap"
+metaDescription: "OpenTofu 1.12.1 fixes multiple golang.org/x/crypto/ssh vulnerabilities including hangs, panics, and a missed @revoked check on CA signature keys (CVE-2026-42508). If you run v1.12.0, upgrade now."
+format: brief
+slug: opentofu-1121-ssh-certfix-2026-06-04
+pathway: sysadmin-craft
+tags:
+  - opentofu
+  - terraform
+  - security
+  - iac
+  - devops
+publishedAt: 2026-06-04T08:00:00+02:00
+excerpt: "OpenTofu 1.12.1 patches multiple SSH vulnerabilities in the underlying golang.org/x/crypto library, including hangs, panics, and a cert revocation bypass. All v1.12.0 users should upgrade."
+draft: false
+lang: en
+---
+
+OpenTofu 1.12.1 shipped on May 27, 2026. It is a patch release against v1.12.0 (May 14) and carries fixes for several SSH vulnerabilities, a certificate revocation gap, and two other regressions introduced in v1.12.0.
+
+If you are on v1.12.0, upgrade. There is no configuration workaround for the SSH issues.
+
+## SSH bugs: hangs and panics in golang.org/x/crypto/ssh
+
+The SSH problems in v1.12.0 stem from the `golang.org/x/crypto/ssh` library. OpenTofu's SSH communicator relied on a version of that library containing multiple vulnerabilities. The fix is PR [#4145](https://github.com/opentofu/opentofu/pull/4145), which upgrades the dependency to `golang.org/x/crypto` v0.52.0.
+
+The vulnerabilities addressed by that upgrade:
+
+**Hangs and deadlocks**
+
+- **GO-2026-5017 / CVE-2026-39830**: A malicious SSH peer could send unsolicited global request responses to fill an internal buffer, blocking the connection's read loop. Calling `Close()` could not release the blocked goroutine, producing a resource leak per connection.
+- **GO-2026-5020**: Large channel writes could trigger an infinite loop in the SSH implementation.
+- **GO-2026-5006 / CVE-2026-39832**: When adding a key to a remote SSH agent, constraint extensions (such as `restrict-destination-v00@openssh.com`) were not serialized in the request. Destination restrictions were silently dropped, leaving forwarded keys unrestricted on the remote host.
+
+**Panics**
+
+- **GO-2026-5013 / CVE-2026-46597**: An incorrectly placed cast from bytes to int in the AES-GCM packet decoder caused server-side panic on crafted inputs. Affects `Dial`, `NewClientConn`, and `NewServerConn`.
+- **GO-2026-5033**: Pathological inputs sent to an SSH agent client could cause a client-side panic.
+
+**Other**
+
+- **GO-2026-5018**: Pathological RSA/DSA parameters could cause a denial-of-service condition.
+- **GO-2026-5019**: The FIDO/U2F physical interaction requirement for security keys could be bypassed.
+
+All of these affect `golang.org/x/crypto/ssh` before v0.52.0 and were disclosed together via [golang-announce](https://groups.google.com/g/golang-announce/c/a082jnz-LvI) in late May 2026.
+
+The OpenTofu release notes describe the combined effect on v1.12.0 as: "ssh usage through OpenTofu generate hangs or panics." Triggered operations are those that use OpenTofu's SSH communicator during provisioning -- primarily `remote-exec` and `file` provisioners connecting over SSH, and `tofu generate` workflows that provision machines.
+
+## Certificate revocation bypass: GO-2026-5021 / CVE-2026-42508
+
+The second security item in v1.12.1 is a revocation checking gap in `golang.org/x/crypto/ssh/knownhosts`.
+
+When OpenTofu verifies an SSH certificate signed by a CA, it checks whether that CA's key appears in the `@revoked` list in `known_hosts`. The bug: only the top-level `key` was checked. The `key.SignatureKey` -- the actual signing key embedded in the certificate -- was not checked. A CA whose signing key had been revoked could still pass the revocation check if the top-level key reference was not itself listed as revoked.
+
+The fix (also part of PR #4145, via the golang.org/x/crypto v0.52.0 upgrade) makes the `hostKeyDB.IsRevoked` function check both `key` and `key.SignatureKey` against `@revoked`.
+
+**Attack surface**: any OpenTofu workflow that uses SSH certificate-based authentication and maintains a `known_hosts` file with `@revoked` entries. If you use plain host key verification rather than CA-signed certificates, this does not affect you. If you do use CA-signed certs and you have revoked a CA signing key, you may have been accepting connections you intended to reject.
+
+There is no CVE-published CVSS score at time of writing. The Go vulnerability database entry is [GO-2026-5021](https://pkg.go.dev/vuln/GO-2026-5021).
+
+## Other fixes in v1.12.1
+
+Two regressions introduced in v1.12.0 are also addressed:
+
+- **Excessive provider memory usage** (PR [#4126](https://github.com/opentofu/opentofu/pull/4126)): providers consumed more memory than expected in v1.12.0.
+- **`replace_triggered_by` validation** (PR [#4133](https://github.com/opentofu/opentofu/pull/4133)): the attribute was validated incorrectly, causing plans to fail in cases that should be valid.
+- **Azure key provider** (PR [#4091](https://github.com/opentofu/opentofu/issues/4091)): `tenant_id`, `subscription_id`, `environment`, and `metadata_host` could not be set via configuration; only environment variables worked.
+
+## Who is affected and what to do
+
+All users of OpenTofu v1.12.0 are affected by the SSH and memory bugs. The cert revocation bypass matters specifically if you use CA-signed SSH certificates with `@revoked` entries in `known_hosts`.
+
+Earlier branches (v1.10, v1.11) also contain the underlying `golang.org/x/crypto` vulnerabilities, but v1.12.1 only patches v1.12.x. Check the OpenTofu project for patch status on older release lines.
+
+Upgrade:
+
+```bash
+# If installed via the official install script or package manager
+# Check https://opentofu.org/docs/intro/install/ for your method
+
+# Verify the installed version after upgrade
+tofu version
+# Should report: OpenTofu v1.12.1
+```
+
+There is no partial mitigation. The SSH communicator issues require the library upgrade that ships with v1.12.1.
+
+## Sources
+
+- [OpenTofu v1.12.1 release notes](https://github.com/opentofu/opentofu/releases/tag/v1.12.1)
+- [PR #4145: Upgrade golang.org/x/crypto to v0.52.0](https://github.com/opentofu/opentofu/pull/4145)
+- [GO-2026-5021 / CVE-2026-42508](https://pkg.go.dev/vuln/GO-2026-5021) -- cert revocation bypass
+- [GO-2026-5013 / CVE-2026-46597](https://pkg.go.dev/vuln/GO-2026-5013) -- AES-GCM panic
+- [GO-2026-5017 / CVE-2026-39830](https://pkg.go.dev/vuln/GO-2026-5017) -- server deadlock
+- [GO-2026-5006 / CVE-2026-39832](https://pkg.go.dev/vuln/GO-2026-5006) -- agent constraint drop
+- [golang-announce disclosure](https://groups.google.com/g/golang-announce/c/a082jnz-LvI)

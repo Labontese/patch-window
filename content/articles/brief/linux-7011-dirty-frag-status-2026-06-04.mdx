@@ -1,0 +1,68 @@
+---
+title: "Linux 7.0.11: Three Security Fixes and a Dirty Frag Update"
+metaDescription: "Linux 7.0.11 and six LTS branches shipped June 1. TCP ISN leak, tap KASLR defeat, and keyring race patched. CVE-2026-43500 fixed; CVE-2026-43284 still open upstream."
+format: brief
+slug: linux-7011-dirty-frag-status-2026-06-04
+pathway: sysadmin-craft
+tags:
+  - linux
+  - kernel
+  - cve
+  - security
+  - networking
+publishedAt: 2026-06-04T08:00:00+02:00
+excerpt: "Seven kernel branches shipped June 1. Three security fixes land in 7.0.11 — TCP ISN leak, tap stack leak, and a keyring race. Dirty Frag is now half-patched: CVE-2026-43500 fixed, CVE-2026-43284 still open upstream."
+draft: false
+lang: en
+---
+
+On June 1, 2026, Greg Kroah-Hartman pushed simultaneous releases across seven active kernel branches: **7.0.11** (stable), **6.18.34**, **6.12.92**, **6.6.142**, **6.1.175**, **5.15.209**, and **5.10.258** (all longterm). Simultaneous batch releases across this many branches usually signal security fixes that needed coordinated backporting. This batch has three of them, plus a meaningful update to Dirty Frag's patch status.
+
+## Security fixes
+
+### TCP ISN prediction (information disclosure)
+
+Stale per-CPU variables in the TCP TIME_WAIT ISN path left values from previous connections uncleared. An attacker able to observe traffic could use the leaked ISN values to make sequence number prediction tractable -- the first step toward TCP session hijacking. The fix clears the per-CPU state at all drop paths between ISN producer and consumer.
+
+### tap driver stack leak via SIOCGIFHWADDR (KASLR defeat)
+
+`tap_ioctl()` returned 8 trailing bytes of kernel stack contents when handling `SIOCGIFHWADDR` on a macvtap interface. Those bytes included kernel `.text` and direct-map pointers, providing the layout information needed to defeat KASLR. The fix zeroes the padding before copying to userspace.
+
+### Keyring lookup race (missing RCU protection)
+
+`find_key_to_update()` called `assoc_array_find()` without holding the RCU read lock, creating a race window against concurrent key garbage collection. The fix wraps the lookup in the appropriate RCU read section.
+
+## Dirty Frag status: half-patched
+
+Dirty Frag is the collective name for two vulnerabilities affecting how the kernel handles page cache during splice operations.
+
+**CVE-2026-43500** (RxRPC/splice pagecache corruption) is fixed in 7.0.11. The fix routes data through a bounce buffer in `recvmsg` rather than decrypting in place, eliminating the race between in-place crypto and splice(). If you are running 7.0.x, upgrading to 7.0.11 closes this half.
+
+**CVE-2026-43284** (ESP/IPsec component of Dirty Frag) is not patched upstream as of this batch. No fix has landed in mainline or any stable branch. Systems using IPsec with ESP remain exposed to the pagecache corruption vector.
+
+The practical implication: upgrading to 7.0.11 removes one of the two Dirty Frag vectors but not both. If IPsec is in your threat model, upgrading alone is not sufficient -- watch the upstream mailing list for CVE-2026-43284 backports.
+
+## What to upgrade to
+
+| Branch | Patched version |
+|--------|----------------|
+| 7.0.x (stable) | 7.0.11 |
+| 6.18.x (longterm) | 6.18.34 |
+| 6.12.x (longterm) | 6.12.92 |
+| 6.6.x (longterm) | 6.6.142 |
+| 6.1.x (longterm) | 6.1.175 |
+| 5.15.x (longterm) | 5.15.209 |
+| 5.10.x (longterm) | 5.10.258 |
+
+All three security fixes (TCP ISN, tap, keyring) are backported across all seven branches. CVE-2026-43500 is fixed in 7.0.11 specifically; backport status to LTS branches was not confirmed at time of writing.
+
+```bash
+uname -r
+```
+
+If the output shows a version below the patched release for your branch, schedule the update. The tap KASLR defeat is exploitable from any local user with access to macvtap interfaces -- common in VM host environments.
+
+## Sources
+
+- [Linux 7.0.11 ChangeLog](https://cdn.kernel.org/pub/linux/kernel/v7.x/ChangeLog-7.0.11)
+- [kernel.org releases](https://www.kernel.org/)
