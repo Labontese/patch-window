@@ -1,0 +1,80 @@
+---
+title: "Docker Engine 29.5.3 fixes runAsNonRoot bypass"
+metaDescription: "Docker Engine 29.5.3 bumps containerd to 2.2.4, patching CVE-2026-46680 where containers silently run as root despite runAsNonRoot: true."
+format: brief
+slug: docker-engine-2953-containerd-224-2026-06-05
+pathway: sysadmin-craft
+tags:
+  - docker
+  - containerd
+  - cve
+  - security
+  - kubernetes
+publishedAt: 2026-06-05T08:00:00+02:00
+excerpt: "Docker Engine 29.5.3 patches CVE-2026-46680 via containerd 2.2.4 -- a flaw where containers with oversized USER IDs silently run as root despite runAsNonRoot: true."
+draft: false
+lang: en
+---
+
+Docker Engine 29.5.3 shipped June 3, 2026. The main reason to upgrade is containerd 2.2.4, which fixes CVE-2026-46680 -- a privilege bypass that lets a container run as root even when `runAsNonRoot: true` is set.
+
+## CVE-2026-46680: runAsNonRoot silently bypassed
+
+The vulnerability is in how containerd parses the `User` field in an OCI container spec. When a numeric user ID exceeds 32-bit integer limits, containerd treats it as a username string instead of an integer. If the container image ships an `/etc/passwd` that maps that oversized string to UID 0, the process starts as root.
+
+From a Kubernetes perspective, the `securityContext.runAsNonRoot: true` check passes because the value in the spec is not the integer `0` -- it's a large number that containerd quietly resolves to root at runtime. The security control does not fire.
+
+**Who is affected:**
+
+- **Docker Engine 29.x:** fixed by upgrading to 29.5.3 (which bundles containerd 2.2.4)
+- **Kubernetes clusters using containerd directly:** vulnerable unless containerd is at one of the fixed versions below
+
+**Affected containerd version ranges and fixed releases:**
+
+| Range | Fixed at |
+|---|---|
+| 1.7.27 - 1.7.31 | 1.7.32 |
+| 2.0.4 - 2.0.8 | 2.0.9 |
+| 2.1.0-beta - 2.2.3 | 2.2.4 |
+| 2.3.0-beta - 2.3.0 | 2.3.1 |
+
+CVSS v4 score is 7.3 (High). The advisory is [GHSA-fqw6-gf59-qr4w](https://github.com/advisories/GHSA-fqw6-gf59-qr4w).
+
+## Other fixes in 29.5.3
+
+**`docker system df` crash under concurrent prune.** Running `docker system df` while images are being pruned in parallel could produce errors with the containerd image store. The race condition is resolved in this release.
+
+**Go 1.26.4.** The runtime is updated. No specific CVEs cited in the release notes, but staying current on Go is standard practice.
+
+**RootlessKit v3.0.1.** Fixes AWS IMDS access in rootless Docker setups via gvisor-tap-vsock. Also resolves UDP port forwarding for non-loopback clients. Relevant if you run rootless Docker on EC2 or other cloud instances where IMDS access is needed.
+
+## What to do
+
+**Docker Engine on Linux or Docker Desktop:**
+Upgrade to 29.5.3. This is a drop-in patch release.
+
+```bash
+# Verify your current version
+docker version --format '{{.Server.Version}}'
+
+# Ubuntu/Debian (apt)
+sudo apt update && sudo apt install docker-ce docker-ce-cli
+
+# RHEL/Fedora (dnf)
+sudo dnf update docker-ce docker-ce-cli
+```
+
+**Kubernetes with containerd as the CRI (not Docker Engine):**
+Upgrade containerd directly to 1.7.32, 2.0.9, 2.2.4, or 2.3.1 depending on your installed branch. Docker Engine is not in the picture here -- the fix is in the containerd binary your kubelet is calling.
+
+**Verify containerd version:**
+```bash
+containerd --version
+```
+
+If you run workloads where `runAsNonRoot: true` is a meaningful security boundary -- multi-tenant clusters, untrusted images, anything with strict pod security policies -- treat this as urgent.
+
+## Sources
+
+- [Docker Engine 29.x release notes](https://docs.docker.com/engine/release-notes/29/)
+- [GHSA-fqw6-gf59-qr4w / CVE-2026-46680](https://github.com/advisories/GHSA-fqw6-gf59-qr4w)
