@@ -18,6 +18,7 @@ export const metadata: Metadata = {
     type: 'website',
     url: `${BASE}/deep-dive`,
   },
+  alternates: { canonical: `${BASE}/deep-dive` },
   twitter: { card: 'summary_large_image', creator: '@DanneGsson' },
 }
 

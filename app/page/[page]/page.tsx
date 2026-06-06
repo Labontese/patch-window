@@ -13,6 +13,8 @@ export const revalidate = 3600
 
 const PAGE_SIZE = 15
 
+const BASE = 'https://patchwindow.serverdigital.net'
+
 export async function generateMetadata({
   params,
 }: {
@@ -20,7 +22,22 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { page } = await params
   return {
-    alternates: { canonical: `https://patchwindow.serverdigital.net/page/${page}` },
+    title: `Patch Log — Page ${page}`,
+    description:
+      'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
+    alternates: { canonical: `${BASE}/page/${page}` },
+    openGraph: {
+      title: `Patch Log — Page ${page}`,
+      description:
+        'Linux, networking, containers, DevOps, and AI in production environments. Three formats: deep-dives, briefs, and hot-takes.',
+      type: 'website',
+      url: `${BASE}/page/${page}`,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      creator: '@DanneGsson',
+    },
+    robots: { index: false, follow: true },
   }
 }
 

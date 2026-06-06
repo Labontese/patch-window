@@ -8,7 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const articles = getAllArticles()
 
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: BASE, lastModified: new Date(), changeFrequency: 'daily', priority: 1 },
+    { url: `${BASE}/`, lastModified: new Date(), changeFrequency: 'daily', priority: 1 },
     { url: `${BASE}/hot-take`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.8 },
     { url: `${BASE}/deep-dive`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.8 },
     { url: `${BASE}/brief`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.8 },

@@ -4,15 +4,34 @@ import Footer from '@/components/Footer'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import { safeJsonLd } from '@/lib/jsonld'
 
+const BASE = 'https://patchwindow.serverdigital.net'
+
 export const metadata: Metadata = {
   title: 'Daniel Gustafsson',
   description:
     'Daniel Gustafsson has run Linux since 1995. He tests what he writes about on real hardware.',
+  alternates: { canonical: `${BASE}/about/daniel` },
   openGraph: {
     title: 'Daniel Gustafsson',
     description:
       'Daniel Gustafsson has run Linux since 1995. He tests what he writes about on real hardware.',
     type: 'profile',
+    url: `${BASE}/about/daniel`,
+    images: [
+      {
+        url: `${BASE}/opengraph-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Daniel Gustafsson — author at Patch Window',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    creator: '@DanneGsson',
+    title: 'Daniel Gustafsson',
+    description:
+      'Daniel Gustafsson has run Linux since 1995. He tests what he writes about on real hardware.',
   },
 }
 

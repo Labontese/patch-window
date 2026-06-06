@@ -18,6 +18,7 @@ export const metadata: Metadata = {
     type: 'website',
     url: `${BASE}/hot-take`,
   },
+  alternates: { canonical: `${BASE}/hot-take` },
   twitter: { card: 'summary_large_image', creator: '@DanneGsson' },
 }
 

@@ -3,15 +3,34 @@ import InnerHeader from '@/components/InnerHeader'
 import Footer from '@/components/Footer'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
+const BASE = 'https://patchwindow.serverdigital.net'
+
 export const metadata: Metadata = {
   title: 'About Patch Window',
   description:
     'Patch Window covers Linux, networking, containers, DevOps, and AI in production environments.',
+  alternates: { canonical: `${BASE}/about` },
   openGraph: {
     title: 'About Patch Window',
     description:
       'Patch Window covers Linux, networking, containers, DevOps, and AI in production environments.',
     type: 'website',
+    url: `${BASE}/about`,
+    images: [
+      {
+        url: `${BASE}/opengraph-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Patch Window — Linux, AIOps, and the production homelab',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    creator: '@DanneGsson',
+    title: 'About Patch Window',
+    description:
+      'Patch Window covers Linux, networking, containers, DevOps, and AI in production environments.',
   },
 }
 

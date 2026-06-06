@@ -3,13 +3,31 @@ import InnerHeader from '@/components/InnerHeader'
 import Footer from '@/components/Footer'
 import Breadcrumbs from '@/components/Breadcrumbs'
 
+const BASE = 'https://patchwindow.serverdigital.net'
+
 export const metadata: Metadata = {
   title: 'Corrections',
   description: 'How Patch Window handles corrections and updates to published articles.',
+  alternates: { canonical: `${BASE}/corrections` },
   openGraph: {
     title: 'Corrections',
     description: 'How Patch Window handles corrections and updates to published articles.',
     type: 'website',
+    url: `${BASE}/corrections`,
+    images: [
+      {
+        url: `${BASE}/opengraph-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Patch Window — Linux, AIOps, and the production homelab',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    creator: '@DanneGsson',
+    title: 'Corrections',
+    description: 'How Patch Window handles corrections and updates to published articles.',
   },
   robots: { index: false, follow: true },
 }
