@@ -1,0 +1,45 @@
+---
+title: "Traefik v3.7.4: six bugfixes, two dependency security bumps"
+format: brief
+slug: traefik-3-7-4-released-2026-06-08
+pathway: sysadmin-craft
+tags:
+  - traefik
+  - proxy
+  - reverse-proxy
+  - kubernetes
+  - security
+  - infrastructure
+publishedAt: 2026-06-08T09:00:00+02:00
+excerpt: "Traefik v3.7.4 (5 June 2026) fixes six bugs: axios security bump, Redis write-timeout, BackendTLSPolicy for Kubernetes Gateway API, and a TLS SNI keepalive bug."
+draft: false
+lang: en
+---
+
+Traefik v3.7.4 shipped 5 June 2026. It is a pure bugfix release with six changes.
+
+## What changed
+
+**Security dependencies.** The dashboard's axios was bumped to v1.17.0 (CVE addressed upstream). react-router and jsdom were also updated. These only matter if you expose the Traefik dashboard.
+
+**Redis write timeout.** A misconfiguration in how Traefik parsed the Redis write-timeout option was fixed. If you use Redis for distributed rate limiting or session storage, check that your write timeout is now being applied correctly after upgrading.
+
+**Kubernetes Gateway API: BackendTLSPolicy.** Status updates for `BackendTLSPolicy` resources were not being written correctly. The fix lands in this release. Affects setups using the Gateway API with TLS policy objects.
+
+**QUIC/HTTP3.** The `quic-go` dependency was updated to v0.59.1.
+
+**TLS SNI with keepalive.** A bug in SNI checking on keepalive connections was fixed. In some configurations, the wrong SNI could be used for routing on a reused connection.
+
+## Who should update
+
+Update if you use any of:
+
+- The Traefik dashboard on a network where exposure is a concern (axios/react-router bump)
+- Redis as a Traefik backend for rate limiting or middleware state
+- Kubernetes Gateway API with `BackendTLSPolicy`
+- HTTP/3 or QUIC
+- TLS routing with keepalive connections enabled
+
+If none of those apply, the release is still a routine update. No configuration changes are required.
+
+[Release notes on GitHub](https://github.com/traefik/traefik/releases/tag/v3.7.4)

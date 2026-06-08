@@ -1,0 +1,76 @@
+---
+title: "Grafana 13.0.2: path traversal in Loki and Tempo, 7 fixes"
+format: brief
+slug: grafana-13-0-2-security-2026-06-08
+pathway: aiops-observability
+tags:
+  - grafana
+  - security
+  - loki
+  - tempo
+  - observability
+  - path-traversal
+  - xss
+  - grafana-cloud
+publishedAt: 2026-06-08T08:30:00+02:00
+excerpt: "Grafana 13.0.2 shipped June 2 with seven security-only fixes. Path traversal in Loki and Tempo are the most critical -- upgrade if you run 13.0.0 or 13.0.1."
+draft: false
+lang: en
+---
+
+Grafana 13.0.2 shipped on June 2, 2026. The release contains no new features -- every commit is a security patch. Seven VUL IDs are addressed. If you run Grafana 13.0.0 or 13.0.1 with Loki or Tempo as datasources, upgrade now.
+
+## Path traversal in Loki and Tempo datasources (VUL-2026-0073, VUL-2026-0062)
+
+Both bugs are path traversal vulnerabilities in datasource plugins. A path traversal flaw lets an attacker supply a crafted file path that escapes the intended directory, typically via `../` sequences. In a datasource context, that means a Grafana user with access to configure or query a datasource could read files from the Grafana server's local filesystem outside the plugin's working directory.
+
+VUL-2026-0073 is in the Loki datasource. VUL-2026-0062 is in the Tempo datasource. Partner acknowledgment dates in the commit log show Loki was disclosed on April 23 and Tempo on May 7, which means both were under coordinated disclosure while Grafana prepared this release.
+
+What a local filesystem read actually means in practice depends on how Grafana is deployed. On a typical self-hosted instance, the Grafana process runs with its own service account, so the attacker is limited to files that account can read. That still includes Grafana's own configuration files, which typically contain database credentials, SMTP settings, and any secrets you have passed via environment variables and written to the config.
+
+## URL sanitization in Geomap (VUL-2026-0072)
+
+The Geomap panel allows configuring a tile server URL and an attribution string. Both values were processed through Grafana's variable interpolation before being used, but the result was not sanitized afterward. The fix adds sanitization after interpolation.
+
+Without sanitization, a dashboard editor could craft a Geomap panel that results in a `javascript:` URL or an unescaped attribution string reaching the DOM. This is an XSS class of vulnerability scoped to dashboard editors -- a role that already has significant trust in a Grafana installation. The practical impact is lower than the path traversal bugs, but it is still a stored XSS path if you have editors you do not fully trust.
+
+## Request body size cap in the web server (VUL-2026-0074)
+
+Grafana's built-in HTTP server had no upper bound on request body size. An attacker who can reach the Grafana HTTP port could send a request with an arbitrarily large body, consuming server memory until the process is killed or the host OOMs. The fix caps incoming request body size at the web server level.
+
+This is a denial-of-service path. It does not require authentication.
+
+## Template injection in TableNG (VUL-2026-0083)
+
+The TableNG panel component was not escaping template expressions before rendering. An attacker who can control cell content (for example by injecting data through a connected datasource or by editing dashboard JSON as an editor) could embed template expressions that execute in the panel render context.
+
+The fix sanitizes template input before TableNG processes it.
+
+## Authentication metric label (VUL-2026-0082)
+
+When a login attempt fails with an unrecognized client type, Grafana was logging the raw client type string as a label in its authentication metrics. Depending on what the client sent, this could result in high-cardinality label pollution in Prometheus metrics or log injection into structured logs. The fix replaces unrecognized client type values with the string `"unknown"` before writing the metric label.
+
+## Additional security fix (VUL-2026-0077)
+
+The release also includes VUL-2026-0077, originally backported from the `13.0.1+security-02` branch. The commit message does not include a public description of the vulnerability; it was acknowledged by Grafana's partner program on April 24. Details will be available when Grafana publishes the corresponding security advisory.
+
+## Versions affected and how to upgrade
+
+All seven fixes are in Grafana 13.0.2. The affected versions are 13.0.0 and 13.0.1 (and 13.0.1+security-01, which addressed a different set of CVEs on May 12). On May 12, Grafana also released security patches for older major versions: 12.4.3+security-02, 12.3.6+security-04, 12.2.8+security-04, and 11.6.14+security-04. Those releases cover different CVEs -- check whether your version is in scope for those separately.
+
+For a standard Linux install:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get update && sudo apt-get install grafana=13.0.2
+
+# RPM-based
+sudo yum update grafana
+
+# Docker
+docker pull grafana/grafana:13.0.2
+```
+
+For Grafana Cloud, Grafana Labs applies security releases to hosted instances and the fix is already deployed.
+
+The release commit is tagged `v13.0.2` in the [grafana/grafana repository](https://github.com/grafana/grafana). CVE numbers for the seven VUL IDs had not been published on the Grafana security advisories page as of June 8 -- Grafana coordinates public CVE assignment after the release ships.

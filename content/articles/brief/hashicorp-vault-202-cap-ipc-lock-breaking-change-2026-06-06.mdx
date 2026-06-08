@@ -1,0 +1,90 @@
+---
+title: "Vault 2.0.2 drops cap_ipc_lock in containers"
+metaDescription: "Vault 2.0.2 removes cap_ipc_lock at build time. Container operators must set disable_mlock or add the capability manually or secrets can swap to disk."
+format: brief
+slug: hashicorp-vault-202-cap-ipc-lock-breaking-change
+pathway: sysadmin-craft
+tags:
+  - vault
+  - hashicorp
+  - security
+  - containers
+  - kubernetes
+  - breaking-change
+publishedAt: 2026-06-06T08:30:00+02:00
+excerpt: "Vault 2.0.2 removes cap_ipc_lock from the binary at build time, reversing a change made in 2.0.1. Without action, vault mlock container workloads can no longer pin secrets in memory -- check your securityContext and Helm values before upgrading."
+draft: false
+lang: en
+---
+
+Vault 2.0.2 was released on June 5, 2026. The primary change is a reversal: `cap_ipc_lock` capability is removed from the Vault binary at build time. This is a direct correction to v2.0.1 (May 19), which added it. The result is a breaking change for anyone running Vault in containers without explicit configuration.
+
+## What changed and why it matters
+
+`cap_ipc_lock` allows a process to call `mlock()`, which pins memory pages and prevents the kernel from swapping them to disk. For Vault, this is a security mechanism: secrets held in process memory cannot be written to a swap file or swap partition.
+
+In v2.0.1, HashiCorp added `cap_ipc_lock` directly into the binary. This caused problems for operators who had intentionally configured containers without that capability, or who ran Vault in environments where acquiring it requires elevated privileges. v2.0.2 removes it again.
+
+The consequence: a standard Vault container on 2.0.2 cannot call `mlock()`. If your deployment relied on 2.0.1 getting that capability from the binary rather than from the container runtime, vault mlock is now silently non-functional.
+
+## Who is affected
+
+Operators running Vault in Docker, Kubernetes, or Nomad who upgraded to 2.0.1 expecting the new `cap_ipc_lock` behavior, and anyone upgrading from an earlier release who has not audited their container configuration.
+
+If your Vault deployment runs on bare metal or a VM without container constraints, mlock behavior depends entirely on the OS and systemd configuration -- this change does not affect you directly.
+
+## What to do
+
+You have two options.
+
+**Option 1: Set `disable_mlock = true` in your Vault config.**
+
+This tells Vault to skip the mlock call entirely. Use this in environments where swap is disabled at the infrastructure level, or where the risk of memory paging is acceptable and covered by other controls (encrypted swap, ephemeral nodes, tmpfs for memory).
+
+```hcl
+# vault.hcl
+disable_mlock = true
+```
+
+**Option 2: Grant `IPC_LOCK` via the container runtime.**
+
+This restores the behavior that existed before v2.0.1 changed it at the binary level. The capability must come from the pod spec or Compose file instead.
+
+Kubernetes / Helm:
+```yaml
+securityContext:
+  capabilities:
+    add:
+      - IPC_LOCK
+```
+
+Docker Compose:
+```yaml
+services:
+  vault:
+    cap_add:
+      - IPC_LOCK
+```
+
+If you use the official Vault Helm chart, check whether `server.securityContext` in your `values.yaml` already includes `IPC_LOCK`. Many default installations do not add it explicitly.
+
+## CVE-2026-39829: RSA key size cap in SSH secrets engine
+
+Also in 2.0.2: the SSH secrets engine now enforces a maximum RSA key size of 8192 bits. Keys larger than 8192 bits can no longer be generated.
+
+In practice, RSA keys beyond 4096 bits are rare in SSH contexts. If your organization has non-standard key generation policies that issued keys above 8192 bits, they will fail to regenerate after upgrade. Audit your SSH role configurations before upgrading if this applies.
+
+## Upgrade path summary
+
+| Version | cap_ipc_lock behavior |
+|---|---|
+| 2.0.0 and earlier | Not in binary; operator grants via runtime |
+| 2.0.1 (May 19) | Added to binary at build time |
+| 2.0.2 (June 5) | Removed from binary; operator must act explicitly |
+
+The safest path from 2.0.1 is to decide before upgrading: either add `IPC_LOCK` to your container spec, or set `disable_mlock = true`. Do not assume the binary will handle it.
+
+## Sources
+
+- [Vault release notes -- GitHub](https://github.com/hashicorp/vault/releases)
+- [Vault configuration: disable_mlock](https://developer.hashicorp.com/vault/docs/configuration#disable_mlock)
