@@ -19,7 +19,7 @@ export default function TerminalHeader({ articleCount }: Props) {
         <Link href="/" style={{ color: 'inherit', textDecoration: 'none' }}>Patch Window</Link>
       </h1>
 
-      <p className="v2-head__description">Technical writing for sysadmins, platform engineers, and homelab operators. Deep dives, hot takes, and briefs on Linux, infrastructure, and the systems that keep things running.</p>
+      <p className="v2-head__description">Security patches, CVE alerts, and Linux infrastructure updates for sysadmins and platform engineers. Briefs, deep dives, and hot takes on the systems that keep things running.</p>
 
       <p className="v2-head__meta">
         {SITE_STATS.currentPatch} &nbsp;·&nbsp; {articleCount} patches &nbsp;·&nbsp; uptime {uptime}d
