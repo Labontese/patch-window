@@ -1,5 +1,5 @@
 ---
-title: "Wazuh 5.0 beta1: new agent, rewritten indexer"
+title: "Wazuh 5.0: new agent protocol, new indexer"
 format: brief
 slug: wazuh-5-released
 pathway: aiops-observability
@@ -9,7 +9,8 @@ tags:
   - security
   - monitoring
 publishedAt: 2026-04-15T09:00:00+02:00
-excerpt: "Wazuh 5.0 beta1 rewrites agent comms and replaces OpenSearch with its own indexer. 4.x agents need upgrading. What breaks and what to test before migrating."
+updatedAt: 2026-06-09T09:00:00+02:00
+excerpt: "Wazuh 5.0 beta rewrites agent state handling and replaces Filebeat with a native indexer connector. 4.x agents need upgrading before they reconnect. What changes, what breaks, and when stable lands."
 related:
   - format: guides
     slug: wazuh-cluster-hardening-2026
@@ -19,14 +20,36 @@ draft: false
 lang: en
 ---
 
-Wazuh 5.0 beta1 was released in April 2026. The two changes that affect existing deployments the most: the agent communication protocol has been rewritten (agents on 4.x will need upgrading before they reconnect), and the bundled OpenSearch-based indexer is replaced with Wazuh's own indexer component.
+Wazuh 5.0 beta1 shipped in April 2026, followed by beta2 in May. The two changes that affect existing deployments the most: agents no longer sync state through the manager, and Filebeat is gone. What replaces both is built into Wazuh itself.
 
-The new indexer is meant to reduce the operational overhead of managing OpenSearch tuning separately from Wazuh. Whether it actually does depends on how heavily you've customized your index templates. If you've added custom mappings, test the migration on a non-production copy first.
+## What changed in the agent
 
-For homelab users running Wazuh manager on a single VM: the upgrade script handles the indexer replacement, but it requires about 10 minutes of downtime during the data migration step. Plan accordingly if your SIEM feeds any alerting that expects continuous data.
+In 4.x, agents depended on rsync with the manager to persist state for FIM, SCA, and System Inventory. In 5.0, each agent maintains that state locally. The rsync dependency is removed entirely.
 
-The full release notes and upgrade guide are at [wazuh.com/blog](https://wazuh.com/blog). The agent compatibility matrix is in the [upgrade documentation](https://documentation.wazuh.com/current/upgrade-guide/).
+The manager installation path also moved from `/var/ossec` to `/var/wazuh-manager`, and agent ID 000 (the legacy self-referential manager agent) no longer exists. These are not backward-compatible changes. A 4.x agent connecting to a 5.0 manager will not work without upgrading the agent first.
 
-Worth watching: how the new indexer performs under high event volume. The OpenSearch version it replaces had known memory pressure issues above roughly 50,000 events per second on small instances. Wazuh's release notes claim improvements there but don't give specific numbers.
+Beta2 fixed a specific case where agents on 4.13 would disconnect during a direct WPK upgrade to 5.0. That fix landing in beta suggests the upgrade path from recent 4.x versions is being actively tested, but no official upgrade documentation for 4.x-to-5.0 has been published as of this writing.
 
-If you're staying on 4.14.x for now, the 4.14.3–4.14.5 patch cycle fixed two critical cluster CVEs. See [how to harden your Wazuh cluster after the 2026 CVEs](/guides/wazuh-cluster-hardening-2026) for the configuration steps that go beyond patching.
+If you manage a large agent fleet, the safe assumption is: upgrade manager first, then agents in batches. Do not mix 4.x agents with a 5.0 manager until official compatibility guidance is published.
+
+Beta2 also introduced cluster-by-default deployment. In 4.x, single-node installs were the default and clustering was opt-in. In 5.0 beta2, the deployment model flips. If you run Wazuh on a single VM and don't want a cluster configuration, check whether the installer respects that during upgrade. The beta documentation doesn't address this case explicitly.
+
+## What replaced Filebeat
+
+In 4.x, Filebeat forwarded events from the manager to the Wazuh Indexer (which ran on OpenSearch). That external dependency is gone in 5.0. Event forwarding now uses a native `indexer-connector` component built into the Wazuh server.
+
+The goal is operational: fewer moving parts, no Filebeat version pinning, no separate JVM process to tune. Whether that translates to lower memory usage under load is not yet documented with numbers. The OpenSearch version in 4.x had known memory pressure above roughly 50,000 events per second on small instances. Wazuh's release notes don't give specific benchmarks for the new connector yet.
+
+If you've built custom Filebeat pipelines or rely on Filebeat's buffering behavior during network outages, test carefully. The `indexer-connector` behavior under network failure is not yet documented in the betas.
+
+## Custom index templates and mappings
+
+If you've added custom mappings to the OpenSearch-based indexer in 4.x, those won't transfer automatically. The indexer schema in 5.0 is different. Before running any migration, export your custom mappings and verify whether they have equivalents in the 5.0 indexer schema. The beta release notes don't include a mapping migration guide.
+
+## When stable lands
+
+No stable release date has been announced. The development milestone tracking agent/manager separation closed in February 2026. Beta2 is the current release. Based on the beta cadence and open issue counts, late June 2026 is the earliest plausible stable date [?], but Wazuh has not confirmed a timeline publicly.
+
+If you're on 4.14.x and waiting for 5.0 stable: 4.14.5 is the current patched release and covers all critical CVEs through April 2026. There's no pressure to run a beta in production. See [Wazuh 4.14.5: the CVEs they hid in release notes](/brief/wazuh-4-14-5-released) for what got fixed and why it matters.
+
+For the configuration steps that go beyond patching, see [how to harden your Wazuh cluster after the 2026 CVEs](/guides/wazuh-cluster-hardening-2026).

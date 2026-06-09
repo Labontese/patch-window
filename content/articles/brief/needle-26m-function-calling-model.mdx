@@ -32,17 +32,48 @@ Pretraining ran on 16 TPU v6e chips for 27 hours over 200 billion tokens. Post-t
 
 Inference speed on Cactus's own hardware: 6,000 tokens per second prefill, 1,200 tokens per second decode.
 
+## Hardware requirements
+
+Quantized to INT4, the model weights are 14MB on disk. No GPU is required. It runs on CPU RAM on consumer hardware — the project targets phones, watches, and Raspberry Pi-class devices as deployment platforms. Cactus does not publish a minimum RAM specification, but at 14MB weights with INT4 quantization the working memory footprint is well under 1GB.
+
 ## What this is and is not
 
 Needle is a routing and dispatch model, not a reasoning model. It handles the structured part of an agentic pipeline — receiving a task, selecting the right tool, and formatting the call correctly — but it does not generate reasoning, handle ambiguous instructions, or maintain conversation context.
 
 The benchmarks are single-shot function calling: given a schema and a task, produce the correct function call in one pass. That is a specific and real capability. It is also a narrow one. In conversational settings where tool selection depends on context accumulated across multiple turns, the benchmark advantage shrinks.
 
+Cactus trained the model across 15 tool categories: timers, messaging, navigation, reminders, smart home control, calendar, search, weather, music, calls, alarms, settings, notes, and a few others. These are the categories where single-shot dispatch is sufficient and where the input is usually short and well-scoped.
+
+The documentation acknowledges the model can be "finicky" on ambiguous input. In testing reported on Hacker News, asking it to "contact my boss to say I'll be late" caused it to set a timer rather than select the email tool. Providing explicit context (a contact name and email address) fixed the selection. The model works well when the schema is unambiguous and the input maps cleanly to one tool; it struggles when disambiguation requires inference from context the model has not seen.
+
+Multi-step operations also trip it up. Asking it to "set a timer for one hour, then remind me in one hour" produced two parallel one-hour timers rather than a chained operation. This is expected given the single-shot architecture — Needle does not maintain state or reason about sequences.
+
 The practical use case is cost-sensitive pipelines where function dispatch is the bottleneck. If you are paying for GPT-4o or Claude Sonnet API calls and a significant fraction of those calls are just resolving which tool to call with which arguments, replacing that step with a 26M local model is a meaningful cost reduction. The large model handles reasoning and response; Needle handles dispatch.
+
+A second pattern that came up on HN: pairing Whisper for transcription with Needle for tool dispatch on a local device. The combined pipeline handles voice-to-function-call without any network round-trip — useful for Home Assistant integrations or embedded voice agents where latency and privacy matter.
 
 ## Running it
 
-The model runs locally. At 26M parameters it fits in CPU RAM without hardware acceleration. Cactus provides inference endpoints and the model weights are available through the repository.
+The model runs locally. Clone the repository, run the setup script, then launch the playground:
+
+```bash
+git clone https://github.com/cactus-compute/needle.git
+cd needle
+source ./setup
+needle playground
+```
+
+That opens a web interface at `localhost:7860` for testing schemas and queries. For programmatic use:
+
+```python
+from needle import SimpleAttentionNetwork, load_checkpoint, generate
+
+params, config = load_checkpoint("checkpoints/needle.pkl")
+model = SimpleAttentionNetwork(config)
+result = generate(model, params, tokenizer, query="set a timer for 10 minutes", tools=[...])
+```
+
+Cactus also publishes the package on PyPI:
 
 ```bash
 pip install cactus-needle

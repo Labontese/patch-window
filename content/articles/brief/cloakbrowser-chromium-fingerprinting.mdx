@@ -22,7 +22,25 @@ The distinction from tools like `puppeteer-extra-plugin-stealth` is the layer wh
 
 ## What gets patched
 
-The 49–57 patches cover canvas fingerprinting, WebGL renderer and vendor strings, audio context output, font enumeration results, GPU information, screen and window properties, WebRTC IP leak behavior, network timing, automation detection signals, and Chrome DevTools Protocol input behavior. These are the vectors that bot detectors use to distinguish headless automation from a browser run by a human on a real machine.
+The patches cover these categories:
+
+**Canvas fingerprinting.** CloakBrowser injects deterministic noise into canvas rendering at the C++ level and spoofs the resulting hash. Each seed produces a unique, consistent canvas fingerprint — consistent across reloads for the same session, distinct from other sessions.
+
+**WebGL.** The binary overrides `UNMASKED_VENDOR_WEBGL` and `UNMASKED_RENDERER_WEBGL` with realistic GPU profiles. The GPU model is generated from the fingerprint seed rather than read from the actual hardware.
+
+**AudioContext.** The AAC audio encoder and AudioContext API are patched to normalize oscillator output differences. The approach produces consistent audio fingerprints without the slight variations that real hardware introduces and that bot detectors use as a signal.
+
+**Font enumeration.** Font lists are normalized so the enumerated set matches a plausible real-user profile rather than whatever fonts happen to be installed in the automation environment.
+
+**Screen and window properties.** Screen dimensions, device pixel ratio, and window geometry are spoofed to match realistic desktop values.
+
+**WebRTC.** IP leak behavior is patched so WebRTC does not expose the actual machine IP through local candidate enumeration.
+
+**Automation signals.** `navigator.webdriver`, Chrome DevTools Protocol input behavior, and other automation-specific API responses are patched to match values from a browser run by a human.
+
+**Network timing.** Timing values that differ between headless and headed Chrome are normalized.
+
+Platform patch counts differ: Linux x86_64 and Windows get 58 patches each; macOS gets 26. The macOS count is lower because several aggressive patches create inconsistencies that bot detection catches on Apple platforms. For sites with aggressive detection, the CloakBrowser docs recommend running Windows fingerprints.
 
 The project ships as a drop-in replacement for Playwright and Puppeteer. Installation is through pip or npm:
 
@@ -36,13 +54,21 @@ npm install cloakbrowser
 
 A Docker image is also available. The wrapper downloads the platform-appropriate Chromium binary automatically.
 
-## What this changes for bot detection
+## How this compares to JS-layer stealth
 
-The standard mental model for bot detection is that you are looking for automation signals in the browser environment. Canvas noise, WebGL fingerprints, navigator properties that differ from a real Chrome installation — these are the tells. If those are patched at the binary level, the detection surface changes.
+`puppeteer-extra-plugin-stealth` and similar tools patch browser APIs by injecting JavaScript at page load. The problem is timing: a bot detector that runs before your JS, or that observes the patching act itself, can read the real values. CloakBrowser removes this timing window by compiling the patches into the binary. There are no runtime values to intercept because the values are never set to anything else.
 
-What bot detectors can still observe: behavioral signals (mouse movement patterns, scroll velocity, timing of form interactions), network-level signals (ASN, datacenter IP ranges, request timing), and TLS fingerprinting. None of those are touched by CloakBrowser.
+Brave Browser takes a different approach. Its fingerprinting protections are built into the browser for privacy purposes, but Brave is not designed for automation and does not patch the automation-specific signals (webdriver flag, CDP behavior) that headless detection targets. Tor Browser routes traffic through the Tor network and normalizes a large set of browser properties to a shared fingerprint, but it trades away per-session fingerprint uniqueness, which creates its own detection signal in some contexts. CloakBrowser is specifically designed for automation workloads and does not touch network routing.
 
-The practical implication is that Chromium fingerprinting bypass via C++ patches closes the browser-identity layer of detection. It does not close the behavioral layer. For Cloudflare Turnstile and reCAPTCHA Enterprise, behavioral analysis is the part that matters. Whether CloakBrowser makes a meaningful dent against those specifically depends on the rest of the automation stack.
+## What it does not solve
+
+CloakBrowser does not close the behavioral layer of detection. Mouse movement patterns, scroll velocity, form interaction timing, and click trajectory analysis are not addressed. For Cloudflare Turnstile and reCAPTCHA Enterprise, behavioral scoring is the mechanism that matters most. Passing browser fingerprint checks does not automatically pass behavioral challenges.
+
+Network-level signals are also out of scope: ASN reputation, datacenter IP ranges, and TLS fingerprinting are not touched. CloakBrowser ships no network rotation and no third-party CAPTCHA solving.
+
+One documented tradeoff: storage quota normalization passes FingerprintJS but can flag incognito mode to other detection services. There is no way to resolve this without making a choice about which detection surface to expose.
+
+Bot detection is an arms race. Detection services can adapt to any published patch set once they know what to look for.
 
 ## Who this is for
 

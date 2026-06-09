@@ -17,7 +17,7 @@ lang: en
 
 Vault Enterprise 2.0 was released on 13 April 2026. The version number is misleading. HashiCorp did not rebuild Vault. The jump from 1.21 to 2.0 is administrative, driven by HashiCorp's move under IBM and the switch to IBM's Support Cycle-2 lifecycle. There are real breaking changes, but the architecture is the same.
 
-If you are upgrading from 1.21, three things matter.
+If you are upgrading from 1.21, three things matter immediately. Two more arrive in 2.0.1 and 2.0.2.
 
 ## The support model is different
 
@@ -37,6 +37,22 @@ The reason is sound. Without authentication, an attacker could submit garbage ke
 
 Set the compat flag if you need the upgrade window to land cleanly, then retrofit the scripts.
 
+## Container images: IPC_LOCK changed twice
+
+This one hit container operators twice across the 2.0.x series.
+
+In 2.0.1 (released 19 May 2026), official OCI images started requiring the `IPC_LOCK` capability. The images moved to run as unprivileged users, which means the kernel capability has to be granted explicitly. Any Pod Security Policy, securityContext, or container runtime configuration that drops all capabilities will break here.
+
+In 2.0.2 (released 4 June 2026), HashiCorp reversed part of this: `IPC_LOCK` is no longer required in official images. The non-root `vault` user model stays. If you added `IPC_LOCK` to your pod specs after 2.0.1, you can remove it after upgrading to 2.0.2.
+
+The practical consequence: if you jumped from 1.21 directly to 2.0.2, none of this affects you. If you stopped at 2.0.1, audit your container security configuration before and after moving to 2.0.2. On platforms where swap is not disabled at the host level, set `disable_mlock = true` in the Vault configuration to avoid data leaks.
+
+## RSA key size enforcement in 2.0.2
+
+Vault 2.0.2 enforces a maximum RSA key modulus of 8192 bits, addressing CVE-2026-39829. Keys larger than 8192 bits are rejected.
+
+Before upgrading to 2.0.2, audit existing RSA keys in transit secrets engine and PKI mounts. Any key with a modulus above 8192 bits needs to be rotated before the upgrade. The valid range after 2.0.2 is 2048 to 8192 bits.
+
 ## What 2.0 actually adds
 
 - Workload Identity Federation for secret syncing without long-lived static credentials.
@@ -49,10 +65,15 @@ Set the compat flag if you need the upgrade window to land cleanly, then retrofi
 
 These are useful, but none of them are the reason for the version bump.
 
-## Should you upgrade?
+## Upgrade checklist
 
-If you are on 1.21, plan the move within the next quarter. The two year standard support clock starts now, and 1.21 will roll off support before the second IBM Support Cycle-2 release lands.
+Before starting the upgrade from 1.21:
 
-Before upgrading: check rekey automation, check Azure auth config, check whether your support contract terms changed. Test on a non-production cluster first.
+1. Check rekey automation scripts. If any run without a Vault token, update them or set `enable_unauthenticated_access` first.
+2. Check Azure auth config. If `AZURE_*` env vars are set on pods or systemd units, verify the stored config in `auth/azure/config` matches.
+3. Audit RSA keys in transit and PKI mounts for moduli above 8192 bits. Rotate before upgrading to 2.0.2.
+4. Review container security contexts. If you're on 2.0.1 specifically, check `IPC_LOCK` requirements.
+5. Test on a non-production cluster first.
+6. Review your support contract terms if you were on an Enterprise LTS agreement.
 
 Read the [Vault 2.0 announcement](https://www.hashicorp.com/en/blog/vault-enterprise-20-modernizes-identity-security-at-scale), the [important changes documentation](https://developer.hashicorp.com/vault/docs/updates/important-changes), and the [release notes](https://developer.hashicorp.com/vault/docs/updates/release-notes) before planning the upgrade.

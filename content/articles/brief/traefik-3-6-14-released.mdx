@@ -23,16 +23,25 @@ The CVE worth reading first is CVE-2026-40912.
 
 The bug lives in `StripPrefixRegex`. The middleware matches its regex against the decoded URL path but uses the resulting byte length to slice the still percent-encoded raw path. The lengths do not match when the URL contains percent-encoded characters, so the slice produces a path with dot-segments the upstream auth middleware does not recognize.
 
-A request to `/api%2e/admin/secret` is treated as `/admin/secret` after stripping for the upstream check, but the original raw form passes through to the backend. `ForwardAuth`, `BasicAuth`, and `DigestAuth` all see the wrong path. The advisory rates it CVSS 7.8 High, network reachable, unauthenticated.
+A request to `/api%2e/admin/secret` is treated as `/admin/secret` after stripping for the upstream check, but the original raw form passes through to the backend. `ForwardAuth`, `BasicAuth`, and `DigestAuth` all see the wrong path. The advisory rates it CVSS 7.8 High (GHSA-6jwx-7vp4-9847), network reachable, unauthenticated.
 
-If you run StripPrefixRegex in the same chain as one of those auth middlewares, you have a pre-auth bypass on a path you thought was protected.
+If you run StripPrefixRegex in the same chain as one of those auth middlewares, you have a pre-auth bypass on a path you thought was protected. The affected range is v3.0.0-beta1 through v3.6.13 and v2.x before 2.11.43. Traefik v1.7.34 and earlier have no patch available.
 
-## What else 3.6.14 fixes
+## The other four CVEs
 
-- CVE-2026-39858 (CVSS 7.8): header sanitization ignored underscore-aliased forwarded headers (`X_Forwarded_Proto` instead of `X-Forwarded-Proto`). Backends that normalize the two equivalently can be spoofed.
-- CVE-2026-35051, CVE-2026-41263, CVE-2026-41174: three additional advisories. Read the GHSAs in full before you triage them.
-- `trustForwardHeader` on the forward auth middleware is fixed.
-- Request URL is now sanitized after prefix stripping, not before.
+CVE-2026-39858 (CVSS 7.8, GHSA-5m6w-wvh7-57vm): header sanitization only stripped canonical forwarded headers like `X-Forwarded-Proto`, not underscore variants like `X_Forwarded_Proto`. Auth backends that treat the two forms as equivalent can be spoofed with a forged trust header. No authentication required.
+
+CVE-2026-35051 (CVSS 7.8, GHSA-6384-m2mw-rf54): `ForwardAuth` with `trustForwardHeader=false` did not strip or rebuild `X-Forwarded-Prefix`. Traefik correctly rebuilt other `X-Forwarded-*` headers in that mode, but this one slipped through. An attacker with network access can inject a malicious prefix value and influence what path the auth service sees.
+
+CVE-2026-41263 (CVSS 6.3, GHSA-6x2q-h3cr-8j2h): timing side-channel in `BasicAuth`. A variable in `basic_auth.go` that was supposed to hold a fallback secret always resolved to an empty string. This caused the comparison to short-circuit in microseconds rather than waiting for a full bcrypt evaluation (~60 ms). An attacker measuring response times can enumerate valid usernames.
+
+CVE-2026-41174 (CVSS 4.8, GHSA-xhjw-95fp-8vgq): Kubernetes CRD provider did not enforce `allowCrossNamespace=false` for middlewares referenced inside `Chain` objects. Direct middleware references were validated correctly, but nested chain references followed a different code path without the same check. An attacker with CRD write access in one namespace can apply middleware from another namespace.
+
+## Who is affected
+
+Any operator running `StripPrefixRegex` with auth middleware should treat CVE-2026-40912 as a pre-auth bypass and upgrade today. The same applies to anyone relying on `ForwardAuth` or forwarded header trust for access control.
+
+CVE-2026-41263 and CVE-2026-41174 are lower severity and require either timing measurement infrastructure or Kubernetes CRD write access to exploit. They still have no reason to stay unpatched.
 
 ## What 3.6.15 added on 29 April
 
@@ -40,12 +49,16 @@ No CVEs. Dependency bumps for `go-acme/lego` to v4.35.2 (ACME client) and `vulca
 
 If you are running 3.6.13 or below, go straight to 3.6.15.
 
+## 3.6.14 versus the 3.7.x series
+
+3.6.14 is a security backport release. The same five CVE fixes shipped simultaneously in 3.7.0-rc.2, but 3.7.0 is still a release candidate. Teams running production 3.6.x should stay on the 3.6 branch and go to 3.6.15. There is no need to jump to 3.7 for these security fixes.
+
 ## Should you upgrade?
 
 Yes. Today.
 
 Two reasons. CVE-2026-40912 is the kind of bug that gets a public PoC inside three months once researchers find percent-encoding parsing differentials. The exploit is one line in curl. CVE-2026-39858 is even simpler to test: send a request with an underscore in a forwarded header and check whether your auth backend sees it.
 
-The upgrade from 3.6.x is a standard cumulative bump. No schema migration, no breaking config. Operators on the 2.11 branch get the same fixes in 2.11.43.
+The upgrade from 3.6.x is a standard cumulative bump. No schema migration, no breaking config changes. Operators on the 2.11 branch get the same fixes in 2.11.43.
 
 Read the [security update announcement](https://community.traefik.io/t/new-security-update-for-traefik-2-11-2-11-43-3-6-3-6-14-and-3-7-3-7-0-rc-2/29834) and the [GitHub Security Advisories list](https://github.com/traefik/traefik/security/advisories) before you plan the rollout.

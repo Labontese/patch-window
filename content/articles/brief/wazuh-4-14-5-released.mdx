@@ -47,6 +47,28 @@ This is the third security-driven release in the 4.14 line. 4.14.3 (February) fi
 
 Three releases, three coordinated patch windows, no blog posts. If you read only the release notes you wouldn't know.
 
+## What else got fixed
+
+Beyond the security fixes, the release addresses several reliability issues that have caused operational pain in 4.14.x deployments.
+
+FIM had two bugs: a deadlock in the file integrity monitor (#34735) and false positives being generated incorrectly (#34880). Both are fixed. If you've been suppressing FIM alerts because of noise, re-evaluate your exclusion rules after upgrading.
+
+Rootcheck had similar problems: false positives (#34734) and a generation issue (#35297). The rootcheck module has been noisy in the 4.14 line; 4.14.5 addresses the most common complaints.
+
+On the Windows side: Syscollector now includes command arguments in process inventory data (#35287 also fixed a heap buffer overflow in registry wildcard expansion on Windows). The command argument change means Syscollector output will be larger, and any dashboards or rules that parse process data may need updating.
+
+The dashboard received two fixes: plugin startup timeouts when the Wazuh API is unreachable (#8130), and a broken pagination limit in security tables that cut off results after 500 items (#8133). The 500-item cap was a silent failure that most operators wouldn't notice until they queried a large agent deployment.
+
+Platform-specific fixes include macOS Ventura SCA policy checks (#34693), Office 365 pagination via HTTP header trimming (#34673), Roundcube decoder source IP truncation (#34793), GuardDuty daily marker handling (#35110), and audit log cache overflow (#35285).
+
+Dependency updates in this release: cryptography 46.0.5, Werkzeug 3.1.6, pip 26.0.1, wheel 0.46.3, Python 3.10.20, PyJWT, PyASN1, and requests. No configuration changes required for these.
+
+## Is 4.14.5 the last 4.x release?
+
+Unknown. Wazuh hasn't announced an end-of-life date for the 4.x line, and 5.0 is still in beta. Given the pace of security fixes in the 4.14.x cycle (three releases in three months), a 4.14.6 is plausible if another CVE surfaces before 5.0 stable lands [?].
+
+What's clear: if and when 5.0 stable ships, upgrading will require agent-level changes. The 5.0 agent protocol is not backward compatible with 4.x managers. Plan for a staged migration, not a drop-in upgrade.
+
 ## Should you upgrade?
 
 Yes. Today if you can.
@@ -55,6 +77,6 @@ Two reasons. One: at least one of the fixes (CVE-2026-28221) is reachable pre-au
 
 The upgrade from 4.14.4 is a standard cumulative bump. No schema migration, no breaking config changes. Windows operators should expect larger Syscollector logs because command arguments are now included.
 
-Read the [official 4.14.5 release notes](https://documentation.wazuh.com/current/release-notes/release-4-14-5.html) and check the [Wazuh advisories page](https://github.com/wazuh/wazuh/security/advisories) for the full GHSA list before you plan the rollout. If you are evaluating when to move off the 4.x line entirely, [Wazuh 5.0 beta1](/brief/wazuh-5-released) shipped in April with a rewritten agent communication protocol and a new built-in indexer.
+Read the [official 4.14.5 release notes](https://documentation.wazuh.com/current/release-notes/release-4-14-5.html) and check the [Wazuh advisories page](https://github.com/wazuh/wazuh/security/advisories) for the full GHSA list before you plan the rollout. If you are evaluating when to move off the 4.x line entirely, [Wazuh 5.0 beta](/brief/wazuh-5-released) shipped in April with a rewritten agent communication protocol and a new built-in indexer connector.
 
-Patching gets you to safe. Configuration keeps you there. For a step-by-step walkthrough of what to lock down after this patch cycle — network exposure, Fernet key hygiene, and worker node segmentation — see [How to harden your Wazuh cluster after the 2026 CVEs](/guides/wazuh-cluster-hardening-2026).
+Patching gets you to safe. Configuration keeps you there. For a step-by-step walkthrough of what to lock down after this patch cycle, including network exposure, Fernet key hygiene, and worker node segmentation, see [How to harden your Wazuh cluster after the 2026 CVEs](/guides/wazuh-cluster-hardening-2026).
