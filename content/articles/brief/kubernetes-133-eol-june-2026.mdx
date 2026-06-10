@@ -1,0 +1,59 @@
+---
+title: "Kubernetes 1.33 EOL: 28 juni — uppgradera nu"
+format: brief
+slug: kubernetes-133-eol-june-2026
+pathway: sysadmin-craft
+tags:
+  - kubernetes
+  - k3s
+  - eol
+  - upgrade
+  - infrastructure
+publishedAt: 2026-06-10T09:00:00+02:00
+excerpt: "Kubernetes 1.33 når end-of-life 28 juni 2026. Inga fler säkerhetspatchar. Kör du on-prem eller K3s utan extended support är det en hård deadline — tre uppgraderingshopp väntar."
+draft: false
+lang: en
+---
+
+Kubernetes 1.33 når end-of-life **28 juni 2026**. Efter det datumet får versionen inga patchar alls — inga säkerhetsfixar, inga bugfixar, ingenting. Kör du 1.33 på ett on-prem-kluster eller med K3s är det en hård deadline utan kudde. Managed-plattformar som EKS, GKE och AKS erbjuder extended support, men det kostar extra och är ingen långsiktig lösning.
+
+## What EOL means in practice
+
+Från och med 28 juni slutar Kubernetes-projektet att backportera fixes till 1.33. Det innebär:
+
+- **Inga säkerhetspatchar.** En kritisk CVE som drabbar 1.33 efter EOL får ingen fix backporterad till den versionen.
+- **Inga bugfixar.** Regressionsproblem eller stabilitetsbuggars åtgärdas inte.
+- **Ingen officiell support.** Community, CNCF och distributörer hänvisar dig till en stödd version.
+
+Klustret slutar inte fungera på dagen — men du opererar utan säkerhetsnät. Nästa allvarliga CVE är ditt problem.
+
+## Upgrade path
+
+Kontrollera vilken version du kör:
+
+```bash
+kubectl version --short
+```
+
+Kubernetes tillåter inte att du hoppar minor-versioner. Ska du till **1.35** (stöd till februari 2027) eller **1.36** (stöd till juni 2027) från 1.33 måste du stega:
+
+**1.33 → 1.34 → 1.35 → 1.36**
+
+Det är tre uppgraderingshopp. Uppgradera alltid till senaste patch-release i varje minor-version innan du går vidare. För managed Kubernetes: kolla om din kontrollplan kan uppgradera automatiskt, men verifiera att nodpoolerna följer med — de uppgraderas ofta separat.
+
+Om du inte har tid att nå 1.36 är **1.35** ett acceptabelt mellansteg. Båda versionerna stöds aktivt.
+
+## How urgent is this
+
+**18 dagar kvar.** EOL inträffar 28 juni 2026.
+
+Tre uppgraderingshopp tar tid att planera, testa och rulla ut i produktion — särskilt om du har workloads som behöver verifieras mot ny API-version. Börja nu.
+
+Vilka det faktiskt berör:
+
+- On-prem Kubernetes (kubeadm, bare metal)
+- K3s-kluster hemma eller i CI/CD
+- Självhostade kluster utan managed extended support
+- Team som kör managed K8s (EKS/GKE/AKS) utan ett aktivt extended support-paket
+
+Om du kör K3s eller kubeadm och inte har uppgraderat sedan i höstas: det är troligt att du kör 1.33 eller äldre. Kolla version, sätt en uppgraderingssprint den närmaste veckan.
