@@ -1,0 +1,160 @@
+---
+title: "K3s on Proxmox: Production-Ready Cluster from Scratch"
+format: deep-dive
+slug: k3s-proxmox-production-cluster
+pathway: homelab-edge
+tags:
+  - k3s
+  - kubernetes
+  - proxmox
+  - networking
+  - homelab
+publishedAt: 2026-06-10T09:00:00+02:00
+excerpt: "Spin up a K3s v1.36.1 cluster on Proxmox VE 9 using dedicated VMs. Control plane, worker nodes, and the baseline configuration that actually holds up in production."
+draft: false
+lang: en
+---
+
+This guide walks you through spinning up a K3s v1.36.1 cluster on Proxmox VE 9 using dedicated VMs — not LXC containers. By the end you have a working control plane, joined worker nodes, and the same baseline configuration I run on my Dell PowerEdge with a Juniper switch behind it.
+
+---
+
+## Prerequisites
+
+**Proxmox VE 9** (GA since late 2025, current stable is 9.2). If you're still on PVE 8, run the `pve8to9` checklist script before touching anything else — note that cgroup v1 is gone in PVE 9, which matters if any of your containers run old systemd.
+
+**VM sizing (official minimums, my recommendations in parentheses):**
+
+| Node type | CPU | RAM | Disk |
+|---|---|---|---|
+| Control plane | 2 cores (4) | 2 GB (4 GB) | 20 GB SSD |
+| Worker | 1 core (2) | 512 MB (2 GB+) | 20 GB SSD |
+
+The official minimums are for K3s itself — not your workloads. For anything real, 4 vCPU / 4 GB on the control plane is the floor. Use an SSD-backed datastore; etcd is write-intensive and will punish you on spinning rust.
+
+**What needs to be in place before you start:**
+- A dedicated bridge interface for cluster traffic (separate from your Proxmox management interface)
+- Static IPs assigned to each VM
+- SSH access and sudo on all nodes
+- Ports open between nodes:
+
+| Port | Protocol | Purpose |
+|---|---|---|
+| 6443 | TCP | API server (agents → server) |
+| 8472 | UDP | Flannel VXLAN overlay (all nodes ↔ all nodes) |
+| 10250 | TCP | Kubelet metrics |
+| 2379–2380 | TCP | Embedded etcd (server ↔ server, only with `--cluster-init`) |
+
+---
+
+## VM Setup
+
+In the Proxmox web UI, create each VM with the following settings. I use Ubuntu 24.04 LTS as the guest OS.
+
+**Network interfaces — this is where most guides go wrong.** Add two NICs to each VM:
+- `net0` → `vmbr0` (your management/external bridge)
+- `net1` → `vmbr1` (dedicated cluster-internal bridge)
+
+Create `vmbr1` in Proxmox under System → Network if it doesn't exist. Set it as an internal bridge (no gateway, no uplink port) — this is your pod network. Assign IPs in a dedicated subnet, for example `10.10.0.0/24`.
+
+Inside each VM, confirm both interfaces come up and assign static IPs:
+
+```bash
+# Check interfaces
+ip addr show
+
+# Example /etc/netplan/00-installer-config.yaml snippet
+network:
+  ethernets:
+    ens18:
+      dhcp4: true          # management, gets DHCP from your LAN
+    ens19:
+      addresses: [10.10.0.11/24]   # cluster-internal, static
+  version: 2
+```
+
+Apply with `sudo netplan apply`. Verify all nodes can reach each other on `10.10.0.x` before proceeding.
+
+---
+
+## K3s Installation
+
+### Control plane
+
+```bash
+curl -sfL https://get.k3s.io | sh -s - server \
+  --cluster-init \
+  --node-ip 10.10.0.11 \
+  --flannel-iface ens19 \
+  --disable servicelb \
+  --disable traefik
+```
+
+Flag breakdown:
+- `--cluster-init` — switches from the default SQLite datastore to embedded etcd and puts the node in HA mode. Use this if you plan to run multiple control plane nodes. For a single-server setup you can omit it. If you add more control plane nodes later, they join with `--server https://10.10.0.11:6443` instead of `--cluster-init`
+- `--node-ip 10.10.0.11` — binds the node's advertised IP to the cluster-internal interface, not the management NIC
+- `--flannel-iface ens19` — tells Flannel which interface to use for overlay traffic; omit this and Flannel will pick the wrong interface when you have multiple NICs
+- `--disable servicelb` — removes the built-in load balancer so MetalLB can take over
+- `--disable traefik` — I replace this with my own ingress controller
+
+Once the install script finishes, grab the node token:
+
+```bash
+sudo cat /var/lib/rancher/k3s/server/node-token
+```
+
+`kubectl` is bundled — no separate install needed:
+
+```bash
+sudo kubectl get nodes
+```
+
+### Worker nodes
+
+On each worker, run:
+
+```bash
+curl -sfL https://get.k3s.io | K3S_URL=https://10.10.0.11:6443 \
+  K3S_TOKEN=<token-from-above> \
+  sh -s - agent \
+  --node-ip 10.10.0.12 \
+  --flannel-iface ens19
+```
+
+Replace `10.10.0.12` with each worker's cluster-internal IP. If your VMs share a hostname template, pass `K3S_NODE_NAME=worker-01` (etc.) to avoid registration collisions.
+
+---
+
+## Verification
+
+Back on the control plane:
+
+```bash
+# All nodes should show Ready within 60–90 seconds
+sudo kubectl get nodes -o wide
+
+# Confirm system pods are running
+sudo kubectl get pods -n kube-system
+
+# Deploy a quick smoke test
+sudo kubectl run nginx --image=nginx --port=80
+sudo kubectl get pod nginx -w
+```
+
+If a node stays `NotReady`, check that `ens19` is up and reachable between hosts first — 90% of join failures in Proxmox setups are the wrong interface.
+
+---
+
+## What I Run Differently in Production
+
+**CNI — Flannel is fine for most setups** but I've moved my production cluster to Cilium for network policy support and better observability. To do that, add `--flannel-backend=none --disable-network-policy` to the server install command and then deploy Cilium via Helm separately. Don't attempt that swap on a running cluster.
+
+**Storage** — I use Longhorn for distributed block storage across the nodes. It survives a single node loss without manual intervention and integrates cleanly with Proxmox VMs that have a dedicated data disk attached. Local-path provisioner (K3s default) is fine for development, not for anything stateful in production.
+
+**Ingress** — I deploy ingress-nginx with MetalLB in L2 mode. MetalLB announces a pool of IPs from my LAN subnet via ARP, which my Juniper EX4200 forwards without any BGP configuration. One caveat worth knowing: L2 mode routes all traffic for a given service IP through a single node. If that node goes down, MetalLB re-announces via ARP and traffic resumes — but depending on your switch's ARP cache timeout, that can take 10–60 seconds. For most homelab and small production setups that's acceptable. If you need sub-second failover, use BGP mode instead.
+
+**Kubeconfig** — copy `/etc/rancher/k3s/k3s.yaml` to your management machine, update the server IP, and you can run `kubectl` locally without SSHing to the control plane every time.
+
+---
+
+The cluster you have after this guide is the same starting point I use before deploying anything real — a solid base, not a toy.
